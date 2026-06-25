@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Timeline Player POC</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Timeline Player</span>
+        </a>
+        <nav class="nav-links" aria-label="App pages">
+          <a class="button" href="index.html">Product</a>
+          <a class="button" href="editor.html">Editor</a>
+        </nav>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel stack">
+          <h1>Open timeline JSON</h1>
+          <div class="field">
+            <label for="timeline-file">Choose JSON file</label>
+            <input id="timeline-file" type="file" accept="application/json,.json">
+          </div>
+          <div class="drop-zone" id="drop-zone">
+            <div>
+              <strong>Drop a timeline JSON file here</strong>
+              <div class="small">Export one from the editor first.</div>
+            </div>
+          </div>
+          <div class="status" id="status" role="status"></div>
+        </aside>
+
+        <section class="panel">
+          <h1 id="timeline-title">No timeline loaded</h1>
+          <p id="timeline-summary">Pick or drop a JSON file to render its events.</p>
+          <div class="timeline" id="timeline"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="src/player.js"></script>
+  </body>
+</html>

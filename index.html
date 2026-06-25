@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Timeline POC</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Timeline POC</span>
+        </div>
+        <nav class="nav-links" aria-label="App pages">
+          <a class="button" href="editor.html">Editor</a>
+          <a class="button" href="player.html">Player</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <div>
+          <h1>Private timelines, portable forever.</h1>
+          <p class="lede">
+            A local-first scrapbook prototype for creating simple life, travel, project, or career timelines.
+            This proof of concept keeps editing data in IndexedDB and exports plain JSON that the standalone
+            player can open.
+          </p>
+          <div class="button-row">
+            <a class="button primary" href="editor.html">Launch editor</a>
+            <a class="button" href="player.html">Open player</a>
+          </div>
+        </div>
+        <div class="product-visual" aria-label="Timeline scrapbook preview"></div>
+      </section>
+
+      <section class="info-grid" aria-label="Product overview">
+        <article class="info-card">
+          <h2>Local-first</h2>
+          <p>Timeline drafts are saved in the browser through IndexedDB. No account, backend, or cloud upload is involved in this prototype.</p>
+        </article>
+        <article class="info-card">
+          <h2>Structured data</h2>
+          <p>Events use a small shared JSON format, so the editor and player can evolve independently around the same document contract.</p>
+        </article>
+        <article class="info-card">
+          <h2>Exportable</h2>
+          <p>The current artifact is a JSON backup file. A future HTML export can embed the same JSON inside the player shell.</p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

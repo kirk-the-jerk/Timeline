@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Timeline Editor POC</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Timeline Editor</span>
+        </a>
+        <nav class="nav-links" aria-label="App pages">
+          <a class="button" href="index.html">Product</a>
+          <a class="button" href="player.html">Player</a>
+        </nav>
+      </header>
+
+      <section class="workspace">
+        <aside class="stack">
+          <form class="panel stack" id="timeline-form">
+            <h1>Edit timeline</h1>
+            <div class="field">
+              <label for="timeline-title">Timeline title</label>
+              <input id="timeline-title" type="text" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="event-date">Event date</label>
+              <input id="event-date" type="date" required>
+            </div>
+            <div class="field">
+              <label for="event-name">Event name</label>
+              <input id="event-name" type="text" placeholder="Started a new project" required autocomplete="off">
+            </div>
+            <div class="button-row">
+              <button class="primary" type="submit">Add event</button>
+              <button type="button" id="add-dummy">Add dummy</button>
+            </div>
+          </form>
+
+          <section class="panel stack" aria-label="Import and export">
+            <h2>Files</h2>
+            <button class="primary" type="button" id="save-json">Save to JSON</button>
+            <div class="field">
+              <label for="load-json">Load from JSON</label>
+              <input id="load-json" type="file" accept="application/json,.json">
+            </div>
+            <button class="danger" type="button" id="reset-timeline">Reset local draft</button>
+            <div class="status" id="status" role="status"></div>
+          </section>
+        </aside>
+
+        <section class="panel">
+          <h2>Current events</h2>
+          <p>This list is saved automatically to IndexedDB after each edit.</p>
+          <div class="event-list" id="event-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="src/editor.js"></script>
+  </body>
+</html>

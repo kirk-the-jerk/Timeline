@@ -1,0 +1,78 @@
+# Timeline POC
+
+A small local-first proof of concept for a private scrapbook/timeline product.
+
+This prototype is intentionally dependency-free:
+
+- `index.html` is the product page.
+- `editor.html` creates, imports, exports, and locally saves a simple timeline.
+- `player.html` opens a timeline JSON file and displays its events.
+- `src/db.js` stores the active editor draft in IndexedDB.
+- `src/timeline.js` defines the shared timeline JSON shape.
+
+## Run Locally
+
+From this folder:
+
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000/
+```
+
+The editor uses browser IndexedDB, so it is best to run through a local server instead of opening the files directly.
+
+## Basic Test Flow
+
+1. Open `http://127.0.0.1:8000/editor.html`.
+2. Add a few dummy events.
+3. Click **Save to JSON**.
+4. Open `http://127.0.0.1:8000/player.html`.
+5. Pick or drop the exported `.timeline.json` file.
+
+## JSON Shape
+
+```json
+{
+  "format": "local-timeline-poc",
+  "version": 1,
+  "title": "Untitled timeline",
+  "updatedAt": "2026-06-25T00:00:00.000Z",
+  "events": [
+    {
+      "id": "uuid",
+      "name": "Started a new project",
+      "date": "2026-06-25"
+    }
+  ]
+}
+```
+
+## VS Code Debugging
+
+Use the built-in terminal to run the local server, then debug in your normal browser with DevTools.
+
+For IndexedDB inspection in Chrome or Edge:
+
+1. Open DevTools.
+2. Go to **Application**.
+3. Open **Storage > IndexedDB**.
+4. Look for the `timeline-poc` database.
+
+## GitHub From VS Code
+
+Recommended first-time flow:
+
+1. Install Git for Windows if VS Code does not detect Git.
+2. Sign in to GitHub from VS Code using the Accounts icon in the lower-left corner.
+3. Open the Source Control panel.
+4. Review changed files before committing.
+5. Write a short commit message, for example `Initial timeline proof of concept`.
+6. Click **Commit**.
+7. Use **Publish Branch** to create the GitHub repository.
+
+Avoid committing browser downloads, exported timelines with private data, or large media files unless you intend to share them.
