@@ -15,7 +15,7 @@ This prototype is intentionally dependency-free:
 From this folder:
 
 ```sh
-python3 -m http.server 8000 --bind 127.0.0.1
+python -m http.server 8000 --bind 127.0.0.1
 ```
 
 Then open:

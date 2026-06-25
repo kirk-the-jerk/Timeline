@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "pwa-chrome",
+            "request": "launch",
+            "name": "Debug Timeline POC",
+            "url": "http://127.0.0.1:8000/index.html",
+            "webRoot": "${workspaceFolder}",
+            "preLaunchTask": "Restart Timeline POC Server"
+        }
+    ]
+}

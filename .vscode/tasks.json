@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Restart Timeline POC Server",
+            "type": "shell",
+            "command": "python scripts/dev_server.py --restart",
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Stop Timeline POC Server",
+            "type": "shell",
+            "command": "python scripts/dev_server.py --stop",
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
+        }
+    ]
+}
