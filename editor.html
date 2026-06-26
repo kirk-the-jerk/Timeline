@@ -85,6 +85,26 @@
               <label for="event-type">Event type</label>
               <select id="event-type"></select>
             </div>
+            <details class="optional-section" id="event-type-options">
+              <summary>
+                <span>Custom event type</span>
+                <span class="optional-summary" id="event-type-summary">Built-in types</span>
+              </summary>
+              <div class="event-type-builder">
+                <div class="field emoji-field">
+                  <label for="custom-event-type-emoji">Emoji</label>
+                  <input id="custom-event-type-emoji" type="text" placeholder="🎉" maxlength="16" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="custom-event-type-label">Name</label>
+                  <input id="custom-event-type-label" type="text" placeholder="Conference" autocomplete="off">
+                </div>
+                <div class="field add-field-action">
+                  <label aria-hidden="true">&nbsp;</label>
+                  <button type="button" id="add-custom-event-type">Add type</button>
+                </div>
+              </div>
+            </details>
             <div class="field">
               <label for="event-title">Event title</label>
               <input id="event-title" type="text" placeholder="Started a new project" required autocomplete="off">

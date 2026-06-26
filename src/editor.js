@@ -5,18 +5,20 @@ import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
   canRenderImageMedia,
   createCustomField,
+  createCustomEventType,
   createEmptyTimeline,
   createEvent,
   createImageMedia,
+  DEFAULT_EVENT_TYPE,
   downloadTimeline,
-  EVENT_TYPES,
   FIELD_PRESETS,
   formatDisplayDate,
   getAvailableTimeZones,
   getBrowserTimeZone,
   getEventTimeZone,
   getEventTitle,
-  getEventTypeLabel,
+  getEventTypeDisplay,
+  getEventTypes,
   makeFieldFromPreset,
   normalizeTimeline,
   resolveEventImages,
@@ -50,6 +52,11 @@ const loadProgressBar = document.querySelector("#load-progress-bar");
 const loadLog = document.querySelector("#load-log");
 const clearTimelineButton = document.querySelector("#clear-timeline");
 const typeInput = document.querySelector("#event-type");
+const eventTypeOptions = document.querySelector("#event-type-options");
+const eventTypeSummary = document.querySelector("#event-type-summary");
+const customEventTypeEmojiInput = document.querySelector("#custom-event-type-emoji");
+const customEventTypeLabelInput = document.querySelector("#custom-event-type-label");
+const addCustomEventTypeButton = document.querySelector("#add-custom-event-type");
 const eventTitleInput = document.querySelector("#event-title");
 const dateInput = document.querySelector("#event-date");
 const datetimeOptions = document.querySelector("#datetime-options");
@@ -154,7 +161,8 @@ form.addEventListener("submit", async (event) => {
     tz: tzInput.value || lastTimeZone,
     location: locationInput.value,
     images: draftImages.map(toEventImage),
-    fields: draftFields
+    fields: draftFields,
+    eventTypes: getEventTypes(timeline)
   });
 
   const nextEvent = previousEvent
@@ -225,6 +233,16 @@ saveForm.addEventListener("submit", (event) => {
 
 clearTimelineButton.addEventListener("click", async () => {
   await clearTimelineDraft();
+});
+
+addCustomEventTypeButton.addEventListener("click", async () => {
+  await addCustomEventTypeToTimeline();
+});
+
+customEventTypeLabelInput.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  await addCustomEventTypeToTimeline();
 });
 
 timeInput.addEventListener("input", renderOptionalSummaries);
@@ -352,6 +370,40 @@ async function clearTimelineDraft() {
   await persist("Local draft reset.");
 }
 
+async function addCustomEventTypeToTimeline() {
+  const label = customEventTypeLabelInput.value.trim();
+  if (!label) {
+    setStatus("Custom event type needs a name.", "warning");
+    customEventTypeLabelInput.focus();
+    return;
+  }
+
+  const eventType = createCustomEventType({
+    label,
+    emoji: customEventTypeEmojiInput.value
+  });
+  const existingTypes = getEventTypes(timeline);
+  const existingMatch = existingTypes.find((type) => type.value === eventType.value);
+  if (existingMatch) {
+    typeInput.value = existingMatch.value;
+    customEventTypeEmojiInput.value = "";
+    customEventTypeLabelInput.value = "";
+    eventTypeOptions.open = false;
+    renderOptionalSummaries();
+    setStatus(`${existingMatch.label} is already available.`);
+    return;
+  }
+
+  timeline.eventTypes = [...existingTypes, eventType];
+  typeInput.value = eventType.value;
+  customEventTypeEmojiInput.value = "";
+  customEventTypeLabelInput.value = "";
+  eventTypeOptions.open = false;
+  await persist("Event type added.");
+  typeInput.value = eventType.value;
+  populateEventTypes(eventType.value);
+}
+
 async function saveTimelineAs(format) {
   const exportTimeline = {
     ...timeline,
@@ -444,10 +496,15 @@ function loadedImportStatus(file, diagnostics) {
   return { message, level };
 }
 
-function populateEventTypes() {
-  typeInput.innerHTML = EVENT_TYPES
-    .map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`)
+function populateEventTypes(selectedValue = typeInput.value || DEFAULT_EVENT_TYPE) {
+  const eventTypes = getEventTypes(timeline);
+  typeInput.innerHTML = eventTypes
+    .map((type) => `<option value="${escapeHtml(type.value)}">${escapeHtml(formatEventTypeOption(type))}</option>`)
     .join("");
+  typeInput.value = eventTypes.some((type) => type.value === selectedValue)
+    ? selectedValue
+    : DEFAULT_EVENT_TYPE;
+  eventTypeSummary.textContent = `${eventTypes.length} type${eventTypes.length === 1 ? "" : "s"}`;
 }
 
 function populateTimeZones() {
@@ -468,8 +525,13 @@ function populateHtmlPlayerTypes() {
     .join("");
 }
 
+function formatEventTypeOption(eventType) {
+  return eventType.emoji ? `${eventType.emoji} ${eventType.label}` : eventType.label;
+}
+
 function render() {
   renderTimelineTitle();
+  populateEventTypes();
   eventList.innerHTML = "";
 
   if (timeline.events.length === 0) {
@@ -485,7 +547,7 @@ function render() {
       <div class="event-summary">
         ${renderEventThumbnail(event)}
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
-        <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
+        <div class="small">${escapeHtml(getEventTypeDisplay(event.type, timeline))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
         ${renderFieldSummary(event.fields)}
       </div>
       <div class="event-actions">
@@ -669,7 +731,7 @@ function resetEventForm() {
   formTitle.textContent = "Add event";
   submitEventButton.textContent = "Add event";
   cancelEditButton.hidden = true;
-  typeInput.value = "life";
+  populateEventTypes(DEFAULT_EVENT_TYPE);
   eventTitleInput.value = "";
   dateInput.value = new Date().toISOString().slice(0, 10);
   timeInput.value = "";
@@ -711,6 +773,7 @@ function getTimelineTitleValue() {
 }
 
 function closeOptionalSections() {
+  eventTypeOptions.open = false;
   datetimeOptions.open = false;
   locationOptions.open = false;
   imageOptions.open = false;
@@ -736,7 +799,7 @@ function startEditingEvent(eventId) {
   submitEventButton.textContent = "Save changes";
   cancelEditButton.hidden = false;
 
-  typeInput.value = event.type;
+  populateEventTypes(event.type);
   eventTitleInput.value = getEventTitle(event);
   dateInput.value = event.timestamp?.date || new Date().toISOString().slice(0, 10);
   timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";

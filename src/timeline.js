@@ -1,11 +1,13 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 4;
+export const TIMELINE_VERSION = 5;
+export const DEFAULT_EVENT_TYPE = "misc";
 
 export const EVENT_TYPES = [
-  { value: "life", label: "Life" },
-  { value: "move", label: "Move" },
-  { value: "travel", label: "Travel" },
-  { value: "job", label: "Job" }
+  { value: "misc", label: "Misc", emoji: "📌" },
+  { value: "life", label: "Life", emoji: "✨" },
+  { value: "move", label: "Move", emoji: "📦" },
+  { value: "travel", label: "Travel", emoji: "✈️" },
+  { value: "job", label: "Job", emoji: "💼" }
 ];
 
 export const FIELD_PRESETS = [
@@ -37,15 +39,16 @@ export function createEmptyTimeline() {
     version: TIMELINE_VERSION,
     title: "Untitled timeline",
     updatedAt: new Date().toISOString(),
+    eventTypes: cloneEventTypes(EVENT_TYPES),
     media: [],
     events: []
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, images, fields }) {
+export function createEvent({ type, title, date, time, tz, location, images, fields, eventTypes }) {
   return {
     id: crypto.randomUUID(),
-    type: normalizeEventType(type),
+    type: normalizeEventType(type, eventTypes),
     title: cleanText(title) || "Untitled event",
     timestamp: normalizeTimestamp({ date, time, tz }),
     location: cleanText(location),
@@ -84,6 +87,7 @@ export function normalizeTimelineWithDiagnostics(input) {
 
   const migratedInput = migrateTimelineInput(input, diagnostics);
   const inputEvents = getEventInputs(migratedInput, diagnostics);
+  const eventTypes = normalizeEventTypes(migratedInput.eventTypes, diagnostics, "$.eventTypes");
   const mediaById = new Map();
 
   if (Array.isArray(migratedInput.media)) {
@@ -101,7 +105,7 @@ export function normalizeTimelineWithDiagnostics(input) {
 
   const usedEventIds = new Set();
   const events = inputEvents.map((event, index) => {
-    const normalizedEvent = normalizeEvent(event, mediaById, diagnostics, `$.events[${index}]`);
+    const normalizedEvent = normalizeEvent(event, mediaById, eventTypes, diagnostics, `$.events[${index}]`);
     if (usedEventIds.has(normalizedEvent.id)) {
       const originalId = normalizedEvent.id;
       normalizedEvent.id = crypto.randomUUID();
@@ -124,6 +128,7 @@ export function normalizeTimelineWithDiagnostics(input) {
     version: TIMELINE_VERSION,
     title: normalizeTimelineTitle(migratedInput.title, diagnostics),
     updatedAt: normalizeUpdatedAt(migratedInput.updatedAt, diagnostics),
+    eventTypes,
     media: [...usedMediaIds].map((id) => mediaById.get(id)).filter(Boolean),
     events: sortEvents(events)
   };
@@ -185,8 +190,29 @@ export function getEventTitle(event) {
   return cleanText(event?.title || event?.name) || "Untitled event";
 }
 
-export function getEventTypeLabel(type) {
-  return EVENT_TYPES.find((eventType) => eventType.value === type)?.label || "Life";
+export function getEventTypes(timeline) {
+  return normalizeEventTypes(timeline?.eventTypes);
+}
+
+export function getEventType(type, timeline) {
+  const safeType = cleanText(type).toLowerCase();
+  const eventTypes = getEventTypes(timeline);
+  return eventTypes.find((eventType) => eventType.value === safeType)
+    || eventTypes.find((eventType) => eventType.value === DEFAULT_EVENT_TYPE)
+    || EVENT_TYPES[0];
+}
+
+export function getEventTypeLabel(type, timeline) {
+  return getEventType(type, timeline).label;
+}
+
+export function getEventTypeEmoji(type, timeline) {
+  return getEventType(type, timeline).emoji;
+}
+
+export function getEventTypeDisplay(type, timeline) {
+  const eventType = getEventType(type, timeline);
+  return eventType.emoji ? `${eventType.emoji} ${eventType.label}` : eventType.label;
 }
 
 export function getEventTimeZone(event) {
@@ -283,7 +309,17 @@ export function createCustomField(label) {
   });
 }
 
-function normalizeEvent(event, mediaById, diagnostics, path) {
+export function createCustomEventType({ label, emoji }) {
+  const safeLabel = cleanText(label) || "Custom";
+  return {
+    value: slugify(safeLabel),
+    label: safeLabel,
+    emoji: normalizeEmoji(emoji) || "🏷️",
+    custom: true
+  };
+}
+
+function normalizeEvent(event, mediaById, eventTypes, diagnostics, path) {
   if (!event || typeof event !== "object") {
     addDiagnostic(diagnostics, "error", "malformed-event-replaced", "Replaced malformed event with an untitled placeholder event.", path);
     event = {};
@@ -308,7 +344,7 @@ function normalizeEvent(event, mediaById, diagnostics, path) {
   return {
     ...pickUnknown(event, EVENT_KEYS),
     id: id || crypto.randomUUID(),
-    type: normalizeEventType(event.type, diagnostics, `${path}.type`),
+    type: normalizeEventType(event.type, eventTypes, diagnostics, `${path}.type`),
     title: getEventTitle(event),
     timestamp,
     location: cleanText(event.location),
@@ -499,17 +535,68 @@ function createField(field) {
   };
 }
 
-function normalizeEventType(type, diagnostics = [], path = "$.type") {
+function normalizeEventType(type, eventTypes = EVENT_TYPES, diagnostics = [], path = "$.type") {
   const safeType = cleanText(type).toLowerCase();
   if (!safeType) {
-    addDiagnostic(diagnostics, "warning", "default-event-type", "Event was missing type; defaulted to life.", path);
-    return "life";
+    addDiagnostic(diagnostics, "warning", "default-event-type", "Event was missing type; defaulted to misc.", path);
+    return DEFAULT_EVENT_TYPE;
   }
-  if (!EVENT_TYPES.some((eventType) => eventType.value === safeType)) {
-    addDiagnostic(diagnostics, "warning", "unknown-event-type", `Unknown event type ${safeType}; defaulted to life.`, path);
-    return "life";
+  if (!isEventTypeValue(safeType)) {
+    addDiagnostic(diagnostics, "warning", "invalid-event-type", `Event type ${safeType} was not a valid slug; defaulted to misc.`, path);
+    return DEFAULT_EVENT_TYPE;
+  }
+  if (!normalizeEventTypes(eventTypes).some((eventType) => eventType.value === safeType)) {
+    addDiagnostic(diagnostics, "warning", "unknown-event-type", `Unknown event type ${safeType}; defaulted to misc.`, path);
+    return DEFAULT_EVENT_TYPE;
   }
   return safeType;
+}
+
+function normalizeEventTypes(eventTypes, diagnostics = [], path = "$.eventTypes") {
+  const normalized = [];
+  const usedValues = new Set();
+
+  for (const eventType of EVENT_TYPES) {
+    addEventType(normalized, usedValues, eventType);
+  }
+
+  if (eventTypes === undefined) return normalized;
+  if (!Array.isArray(eventTypes)) {
+    addDiagnostic(diagnostics, "error", "invalid-event-types-array", "Ignored event types because they were not an array.", path);
+    return normalized;
+  }
+
+  eventTypes.forEach((eventType, index) => {
+    if (!eventType || typeof eventType !== "object") {
+      addDiagnostic(diagnostics, "error", "malformed-event-type-dropped", "Ignored malformed event type.", `${path}[${index}]`);
+      return;
+    }
+
+    const label = cleanText(eventType.label || eventType.name);
+    const value = cleanText(eventType.value || eventType.key).toLowerCase() || slugify(label);
+    if (!isEventTypeValue(value)) {
+      addDiagnostic(diagnostics, "warning", "invalid-event-type-definition", `Ignored event type ${value || "(missing)"} because its value was not a valid slug.`, `${path}[${index}].value`);
+      return;
+    }
+    if (usedValues.has(value)) {
+      if (!EVENT_TYPES.some((type) => type.value === value)) {
+        addDiagnostic(diagnostics, "warning", "duplicate-event-type", `Ignored duplicate event type ${value}.`, `${path}[${index}].value`);
+      }
+      return;
+    }
+
+    addEventType(normalized, usedValues, {
+      ...pickUnknown(eventType, EVENT_TYPE_KEYS),
+      value,
+      label: label || titleFromSlug(value),
+      emoji: normalizeEmoji(eventType.emoji) || "🏷️",
+      ...(eventType.custom !== undefined || !EVENT_TYPES.some((type) => type.value === value)
+        ? { custom: Boolean(eventType.custom || !EVENT_TYPES.some((type) => type.value === value)) }
+        : {})
+    });
+  });
+
+  return normalized;
 }
 
 function migrateTimelineInput(input, diagnostics) {
@@ -524,6 +611,9 @@ function migrateTimelineInput(input, diagnostics) {
   }
   if (version < 4) {
     migrated = migrateV3ToV4(migrated, diagnostics);
+  }
+  if (version < 5) {
+    migrated = migrateV4ToV5(migrated, diagnostics);
   }
   if (version > TIMELINE_VERSION) {
     addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
@@ -582,6 +672,15 @@ function migrateV3ToV4(input, diagnostics) {
   return {
     ...input,
     version: 4
+  };
+}
+
+function migrateV4ToV5(input, diagnostics) {
+  addDiagnostic(diagnostics, "warning", "migrated-v4-schema", "Applied version 4 to version 5 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 5,
+    eventTypes: Array.isArray(input.eventTypes) ? input.eventTypes : cloneEventTypes(EVENT_TYPES)
   };
 }
 
@@ -658,6 +757,31 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function cloneEventTypes(eventTypes) {
+  return eventTypes.map((eventType) => ({ ...eventType }));
+}
+
+function addEventType(eventTypes, usedValues, eventType) {
+  eventTypes.push({ ...eventType });
+  usedValues.add(eventType.value);
+}
+
+function normalizeEmoji(value) {
+  return cleanText(value).slice(0, 16);
+}
+
+function titleFromSlug(value) {
+  return cleanText(value)
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Event";
+}
+
+function isEventTypeValue(value) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
 function addDiagnostic(diagnostics, level, code, message, path) {
   diagnostics.push({
     level,
@@ -727,8 +851,18 @@ const TIMELINE_KEYS = new Set([
   "version",
   "title",
   "updatedAt",
+  "eventTypes",
   "events",
   "media"
+]);
+
+const EVENT_TYPE_KEYS = new Set([
+  "value",
+  "key",
+  "label",
+  "name",
+  "emoji",
+  "custom"
 ]);
 
 const EVENT_KEYS = new Set([

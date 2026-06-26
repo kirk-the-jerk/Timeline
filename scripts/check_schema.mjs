@@ -21,6 +21,7 @@ function main() {
   checkV4ImageGallery();
   checkFutureVersion();
   checkMalformedRecoverable();
+  checkCustomEventTypes();
   console.log("OK schema fixtures");
 }
 
@@ -40,6 +41,7 @@ function checkV1Legacy() {
     "migrated-v1-schema",
     "migrated-v2-schema",
     "migrated-v3-schema",
+    "migrated-v4-schema",
     "default-time",
     "default-time-zone",
     "generated-event-id",
@@ -57,6 +59,7 @@ function checkV2EmbeddedImage() {
   assertCodesInclude(diagnostics, [
     "migrated-v2-schema",
     "migrated-v3-schema",
+    "migrated-v4-schema",
     "ignored-legacy-event-images"
   ]);
 }
@@ -71,7 +74,7 @@ function checkV4ImageGallery() {
   assert.equal(timeline.events[0].images[0].mediaId, "media-1");
   assert.equal(timeline.events[0].images[1].kind, "link");
   assert.equal(timeline.events[0].images[1].url, "https://example.com/photo.jpg");
-  assert.equal(diagnostics.length, 0);
+  assertCodesInclude(diagnostics, ["migrated-v4-schema"]);
 }
 
 function checkFutureVersion() {
@@ -88,13 +91,14 @@ function checkMalformedRecoverable() {
   assert.equal(timeline.events.length, 3);
   assert.equal(timeline.media.length, 0);
   assert.equal(new Set(timeline.events.map((event) => event.id)).size, 3);
-  assert.equal(timeline.events.find((event) => event.title === "Odd timestamp and fields").type, "life");
+  assert.equal(timeline.events.find((event) => event.title === "Odd timestamp and fields").type, "misc");
   assertCodesInclude(diagnostics, [
     "invalid-media-dropped",
     "malformed-event-replaced",
     "invalid-fields-dropped",
     "ignored-legacy-event-images",
     "migrated-v3-schema",
+    "migrated-v4-schema",
     "duplicate-event-id",
     "unknown-event-type",
     "non-iso-date",
@@ -104,6 +108,47 @@ function checkMalformedRecoverable() {
     "stringified-field-value"
   ]);
   assertHasLevels(diagnostics, ["warning", "error"]);
+}
+
+function checkCustomEventTypes() {
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics({
+    format: "local-timeline-poc",
+    version: TIMELINE_VERSION,
+    title: "Custom event type timeline",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    eventTypes: [
+      { value: "conference", label: "Conference", emoji: "🎤", custom: true }
+    ],
+    events: [
+      {
+        id: "event-1",
+        type: "conference",
+        title: "Spoke at JSConf",
+        timestamp: {
+          date: "2026-06-25",
+          time: "09:00",
+          tz: "UTC"
+        }
+      },
+      {
+        id: "event-2",
+        type: "mystery",
+        title: "Unknown type",
+        timestamp: {
+          date: "2026-06-26",
+          time: "09:00",
+          tz: "UTC"
+        }
+      }
+    ]
+  });
+
+  assert.equal(timeline.version, TIMELINE_VERSION);
+  assert.equal(timeline.eventTypes[0].value, "misc");
+  assert.ok(timeline.eventTypes.some((eventType) => eventType.value === "conference" && eventType.emoji === "🎤"));
+  assert.equal(timeline.events.find((event) => event.title === "Spoke at JSConf").type, "conference");
+  assert.equal(timeline.events.find((event) => event.title === "Unknown type").type, "misc");
+  assertCodesInclude(diagnostics, ["unknown-event-type"]);
 }
 
 function normalizeFixture(name) {

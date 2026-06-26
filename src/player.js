@@ -4,7 +4,7 @@ import {
   canRenderImageMedia,
   formatDisplayTimestamp,
   getEventTitle,
-  getEventTypeLabel,
+  getEventTypeDisplay,
   normalizeTimeline,
   resolveEventImages,
   sortEvents
@@ -92,7 +92,7 @@ function renderTimeline(loadedTimeline) {
       <div class="timeline-card">
         ${renderEventGallery(event)}
         <h2>${escapeHtml(getEventTitle(event))}</h2>
-        <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
+        <div class="small">${escapeHtml(getEventTypeDisplay(event.type, timelineDocument))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
         ${renderFieldSummary(event.fields)}
       </div>
     `;

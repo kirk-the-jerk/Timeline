@@ -394,6 +394,17 @@ select {
   gap: 10px;
 }
 
+.event-type-builder {
+  display: grid;
+  grid-template-columns: minmax(64px, 84px) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.emoji-field input {
+  text-align: center;
+}
+
 .optional-section {
   display: grid;
   gap: 10px;
@@ -441,6 +452,7 @@ select {
 
 .optional-section > .field,
 .optional-section > .field-grid,
+.optional-section > .event-type-builder,
 .optional-section > .drop-zone,
 .optional-section > .image-preview,
 .optional-section > .custom-fields {
@@ -1017,6 +1029,7 @@ select {
   }
 
   .field-grid,
+  .event-type-builder,
   .custom-field-row,
   .gallery-editor-item,
   .field-summary div {

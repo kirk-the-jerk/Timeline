@@ -49,11 +49,12 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
 
 ## Schema Compatibility
 
-Current exports use schema version `4`.
+Current exports use schema version `5`.
 
 - Version 1-style events with `name` and `date` are migrated on import.
 - Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
 - Version 4 stores event image galleries in `events[].images[]`. Embedded image bytes live in top-level `media[]`; linked images store their URL directly in the gallery item.
+- Version 5 stores event type labels and emoji in top-level `eventTypes[]`. Event records keep the stable `type` slug.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
@@ -64,9 +65,17 @@ In IndexedDB, the active draft stores the timeline document and media records se
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 4,
+  "version": 5,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
+  "eventTypes": [
+    { "value": "misc", "label": "Misc", "emoji": "📌" },
+    { "value": "life", "label": "Life", "emoji": "✨" },
+    { "value": "move", "label": "Move", "emoji": "📦" },
+    { "value": "travel", "label": "Travel", "emoji": "✈️" },
+    { "value": "job", "label": "Job", "emoji": "💼" },
+    { "value": "conference", "label": "Conference", "emoji": "🎤", "custom": true }
+  ],
   "media": [
     {
       "id": "image-uuid",

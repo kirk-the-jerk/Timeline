@@ -266,12 +266,14 @@ a {
 function standaloneRuntime() {
   return `
 (function () {
-  const EVENT_TYPES = {
-    life: "Life",
-    move: "Move",
-    travel: "Travel",
-    job: "Job"
-  };
+  const DEFAULT_EVENT_TYPE = "misc";
+  const EVENT_TYPES = [
+    { value: "misc", label: "Misc", emoji: "📌" },
+    { value: "life", label: "Life", emoji: "✨" },
+    { value: "move", label: "Move", emoji: "📦" },
+    { value: "travel", label: "Travel", emoji: "✈️" },
+    { value: "job", label: "Job", emoji: "💼" }
+  ];
 
   const timelineData = JSON.parse(document.getElementById("timeline-data").textContent);
   const playerData = JSON.parse(document.getElementById("player-data").textContent);
@@ -279,6 +281,7 @@ function standaloneRuntime() {
   const summary = document.getElementById("timeline-summary");
   const timeline = document.getElementById("timeline");
   const events = sortEvents(timelineData.events || []);
+  const eventTypes = normalizeEventTypes(timelineData.eventTypes);
   const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
 
   title.textContent = timelineData.title || "Untitled timeline";
@@ -314,7 +317,7 @@ function standaloneRuntime() {
 
     const meta = document.createElement("div");
     meta.className = "small";
-    meta.textContent = (EVENT_TYPES[event.type] || "Life") + (event.location ? " / " + event.location : "");
+    meta.textContent = getEventTypeDisplay(event.type) + (event.location ? " / " + event.location : "");
     card.append(meta);
 
     const fieldSummary = makeFieldSummary(event.fields || []);
@@ -350,6 +353,43 @@ function standaloneRuntime() {
       if (timestampCompare !== 0) return timestampCompare;
       return String(a.title || "").localeCompare(String(b.title || ""));
     });
+  }
+
+  function normalizeEventTypes(input) {
+    const normalized = EVENT_TYPES.map((eventType) => Object.assign({}, eventType));
+    const usedValues = new Set(normalized.map((eventType) => eventType.value));
+    if (!Array.isArray(input)) return normalized;
+
+    for (const item of input) {
+      if (!item || typeof item !== "object") continue;
+      const value = String(item.value || item.key || "").trim().toLowerCase();
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || usedValues.has(value)) continue;
+      normalized.push({
+        value,
+        label: String(item.label || item.name || titleFromSlug(value)).trim(),
+        emoji: String(item.emoji || "🏷️").trim().slice(0, 16),
+        custom: Boolean(item.custom)
+      });
+      usedValues.add(value);
+    }
+
+    return normalized;
+  }
+
+  function getEventTypeDisplay(type) {
+    const safeType = String(type || "").trim().toLowerCase();
+    const eventType = eventTypes.find((item) => item.value === safeType)
+      || eventTypes.find((item) => item.value === DEFAULT_EVENT_TYPE)
+      || EVENT_TYPES[0];
+    return eventType.emoji ? eventType.emoji + " " + eventType.label : eventType.label;
+  }
+
+  function titleFromSlug(value) {
+    return String(value || "")
+      .split("-")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") || "Event";
   }
 
   function timestampSortValue(timestamp) {
