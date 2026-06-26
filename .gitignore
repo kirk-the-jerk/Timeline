@@ -2,6 +2,7 @@
 Thumbs.db
 *.log
 *.timeline.json
+*.timeline.html
 .vscode/timeline-server.pid
 .vscode/timeline-server.log
 node_modules/

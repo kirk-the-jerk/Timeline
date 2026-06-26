@@ -30,9 +30,12 @@ The editor uses browser IndexedDB, so it is best to run through a local server i
 
 1. Open `http://127.0.0.1:8000/editor.html`.
 2. Add a few dummy events.
-3. Click **Save to JSON**.
-4. Open `http://127.0.0.1:8000/player.html`.
-5. Pick or drop the exported `.timeline.json` file.
+3. Click **Save to JSON** for an editable backup/debug file.
+4. Click **Save to HTML** for a standalone timeline viewer that embeds the player and timeline data.
+5. Open `http://127.0.0.1:8000/player.html`.
+6. Pick or drop the exported `.timeline.json` file.
+
+The exported `.timeline.html` file can be opened directly in a browser. It contains its own CSS, player script, timeline JSON, and any embedded low-resolution JPEG images.
 
 ## JSON Shape
 
@@ -53,6 +56,16 @@ The editor uses browser IndexedDB, so it is best to run through a local server i
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",
+      "image": {
+        "id": "uuid",
+        "mimeType": "image/jpeg",
+        "dataUrl": "data:image/jpeg;base64,...",
+        "width": 960,
+        "height": 640,
+        "originalName": "photo.jpg",
+        "encodedAt": "2026-06-25T00:00:00.000Z"
+      },
+      "imageLink": "https://example.com/photo.jpg",
       "fields": [
         {
           "id": "uuid",

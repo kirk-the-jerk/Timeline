@@ -41,13 +41,15 @@ export function createEmptyTimeline() {
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, fields }) {
+export function createEvent({ type, title, date, time, tz, location, image, imageLink, fields }) {
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type),
     title: cleanText(title) || "Untitled event",
     timestamp: normalizeTimestamp({ date, time, tz }),
     location: cleanText(location),
+    image: normalizeImage(image),
+    imageLink: cleanText(imageLink),
     fields: normalizeFields(fields)
   };
 }
@@ -77,7 +79,7 @@ export function normalizeTimeline(input) {
 
   return {
     format: TIMELINE_FORMAT,
-    version: Number(input.version || TIMELINE_VERSION),
+    version: TIMELINE_VERSION,
     title: String(input.title || "Imported timeline"),
     updatedAt: String(input.updatedAt || new Date().toISOString()),
     events: sortEvents(input.events.map(normalizeEvent))
@@ -205,7 +207,26 @@ function normalizeEvent(event) {
     title: getEventTitle(event),
     timestamp,
     location: cleanText(event.location),
+    image: normalizeImage(event.image),
+    imageLink: cleanText(event.imageLink),
     fields: normalizeFields(event.fields)
+  };
+}
+
+function normalizeImage(image) {
+  if (!image || typeof image !== "object") return null;
+
+  const dataUrl = cleanText(image.dataUrl);
+  if (!dataUrl.startsWith("data:image/jpeg;base64,")) return null;
+
+  return {
+    id: String(image.id || crypto.randomUUID()),
+    mimeType: "image/jpeg",
+    dataUrl,
+    width: Number(image.width || 0),
+    height: Number(image.height || 0),
+    originalName: cleanText(image.originalName),
+    encodedAt: cleanText(image.encodedAt) || new Date().toISOString()
   };
 }
 

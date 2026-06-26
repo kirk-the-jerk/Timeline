@@ -1,4 +1,5 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
+import { downloadStandaloneHtml } from "./htmlExport.js";
 import {
   createCustomField,
   createEmptyTimeline,
@@ -26,6 +27,10 @@ const dateInput = document.querySelector("#event-date");
 const timeInput = document.querySelector("#event-time");
 const tzInput = document.querySelector("#event-tz");
 const locationInput = document.querySelector("#event-location");
+const imageLinkInput = document.querySelector("#event-image-link");
+const imageFileInput = document.querySelector("#event-image-file");
+const imageDropZone = document.querySelector("#image-drop-zone");
+const imagePreview = document.querySelector("#image-preview");
 const fieldPresetInput = document.querySelector("#field-preset");
 const addPresetFieldButton = document.querySelector("#add-preset-field");
 const customFieldLabelInput = document.querySelector("#custom-field-label");
@@ -33,6 +38,7 @@ const addCustomFieldButton = document.querySelector("#add-custom-field");
 const customFields = document.querySelector("#custom-fields");
 const addDummyButton = document.querySelector("#add-dummy");
 const saveJsonButton = document.querySelector("#save-json");
+const saveHtmlButton = document.querySelector("#save-html");
 const loadJsonInput = document.querySelector("#load-json");
 const resetButton = document.querySelector("#reset-timeline");
 const eventList = document.querySelector("#event-list");
@@ -40,6 +46,7 @@ const status = document.querySelector("#status");
 
 let timeline = createEmptyTimeline();
 let draftFields = [];
+let draftImage = null;
 let lastTimeZone = getBrowserTimeZone();
 
 init();
@@ -71,6 +78,8 @@ form.addEventListener("submit", async (event) => {
     time: timeInput.value || "00:00",
     tz: tzInput.value || lastTimeZone,
     location: locationInput.value,
+    image: draftImage,
+    imageLink: imageLinkInput.value,
     fields: draftFields
   });
 
@@ -114,6 +123,39 @@ customFields.addEventListener("click", (event) => {
   renderDraftFields();
 });
 
+imageFileInput.addEventListener("change", async () => {
+  const file = imageFileInput.files?.[0];
+  if (!file) return;
+  await setDraftImageFromFile(file);
+  imageFileInput.value = "";
+});
+
+imageDropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  imageDropZone.classList.add("dragging");
+});
+
+imageDropZone.addEventListener("dragleave", () => {
+  imageDropZone.classList.remove("dragging");
+});
+
+imageDropZone.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  imageDropZone.classList.remove("dragging");
+  const file = [...event.dataTransfer.files].find((item) => item.type.startsWith("image/"));
+  if (!file) {
+    setStatus("Drop did not include an image file.");
+    return;
+  }
+  await setDraftImageFromFile(file);
+});
+
+document.addEventListener("paste", async (event) => {
+  const file = getImageFileFromClipboard(event.clipboardData);
+  if (!file) return;
+  await setDraftImageFromFile(file);
+});
+
 addDummyButton.addEventListener("click", async () => {
   const number = timeline.events.length + 1;
   const type = EVENT_TYPES[number % EVENT_TYPES.length].value;
@@ -124,6 +166,7 @@ addDummyButton.addEventListener("click", async () => {
     tz: lastTimeZone,
     title: `Dummy ${getEventTypeLabel(type).toLowerCase()} event ${number}`,
     location: number % 2 === 0 ? "Sample City" : "",
+    imageLink: number % 3 === 0 ? "https://example.com/sample-image.jpg" : "",
     fields: [
       {
         key: "summary",
@@ -143,6 +186,12 @@ saveJsonButton.addEventListener("click", () => {
   timeline.title = titleInput.value.trim() || "Untitled timeline";
   downloadTimeline(timeline);
   setStatus("JSON export started.");
+});
+
+saveHtmlButton.addEventListener("click", () => {
+  timeline.title = titleInput.value.trim() || "Untitled timeline";
+  downloadStandaloneHtml(timeline);
+  setStatus("Standalone HTML export started.");
 });
 
 loadJsonInput.addEventListener("change", async () => {
@@ -217,14 +266,26 @@ function render() {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="event-summary">
+        ${renderEventImage(event)}
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
+        ${renderImageLink(event.imageLink)}
         ${renderFieldSummary(event.fields)}
       </div>
       <button type="button" data-delete-id="${escapeHtml(event.id)}">Delete</button>
     `;
     eventList.append(row);
   }
+}
+
+function renderEventImage(event) {
+  if (!event.image?.dataUrl) return "";
+  return `<img class="event-thumb" src="${escapeHtml(event.image.dataUrl)}" alt="">`;
+}
+
+function renderImageLink(imageLink) {
+  if (!imageLink) return "";
+  return `<a class="small" href="${escapeHtml(imageLink)}" target="_blank" rel="noreferrer">Image link</a>`;
 }
 
 function renderDraftFields() {
@@ -245,6 +306,32 @@ function renderDraftFields() {
     `;
     customFields.append(row);
   }
+}
+
+function renderImagePreview() {
+  imagePreview.innerHTML = "";
+
+  if (!draftImage) {
+    imagePreview.innerHTML = `<div class="empty-state compact">No image attached to this draft event.</div>`;
+    return;
+  }
+
+  imagePreview.innerHTML = `
+    <div class="attached-image">
+      <img src="${escapeHtml(draftImage.dataUrl)}" alt="">
+      <div>
+        <strong>${escapeHtml(draftImage.originalName || "Attached image")}</strong>
+        <div class="small">${draftImage.width} x ${draftImage.height} JPEG</div>
+      </div>
+      <button type="button" id="remove-image">Remove</button>
+    </div>
+  `;
+
+  imagePreview.querySelector("#remove-image").addEventListener("click", () => {
+    draftImage = null;
+    renderImagePreview();
+    setStatus("Image removed from draft event.");
+  });
 }
 
 function renderFieldSummary(fields) {
@@ -270,8 +357,81 @@ function resetEventForm() {
   timeInput.value = "";
   tzInput.value = lastTimeZone;
   locationInput.value = "";
+  imageLinkInput.value = "";
+  imageFileInput.value = "";
+  draftImage = null;
   draftFields = [];
+  renderImagePreview();
   renderDraftFields();
+}
+
+async function setDraftImageFromFile(file) {
+  try {
+    setStatus("Encoding image...");
+    draftImage = await encodeImageFile(file);
+    renderImagePreview();
+    setStatus("Image attached as resized JPEG with metadata removed.");
+  } catch (error) {
+    setStatus(`Image failed: ${error.message}`);
+  }
+}
+
+async function encodeImageFile(file) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Selected file is not an image.");
+  }
+
+  const image = await loadImage(file);
+  const { width, height } = fitWithin(image.naturalWidth, image.naturalHeight, 960);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { alpha: false });
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  return {
+    id: crypto.randomUUID(),
+    mimeType: "image/jpeg",
+    dataUrl: canvas.toDataURL("image/jpeg", 0.72),
+    width,
+    height,
+    originalName: file.name || "pasted-image",
+    encodedAt: new Date().toISOString()
+  };
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Browser could not decode that image."));
+    };
+    image.src = url;
+  });
+}
+
+function fitWithin(sourceWidth, sourceHeight, maxDimension) {
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale))
+  };
+}
+
+function getImageFileFromClipboard(clipboardData) {
+  const file = [...(clipboardData?.files || [])].find((item) => item.type.startsWith("image/"));
+  if (file) return file;
+
+  const imageItem = [...(clipboardData?.items || [])].find((item) => item.type.startsWith("image/"));
+  return imageItem?.getAsFile() || null;
 }
 
 function syncDraftFieldValues() {

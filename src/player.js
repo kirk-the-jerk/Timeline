@@ -33,17 +33,17 @@ dropZone.addEventListener("drop", async (event) => {
 
 async function loadFile(file) {
   try {
-    const document = await readTimelineFile(file);
-    renderTimeline(document);
+    const timelineDocument = await readTimelineFile(file);
+    renderTimeline(timelineDocument);
     status.textContent = `Loaded ${file.name}.`;
   } catch (error) {
     status.textContent = `Could not load timeline: ${error.message}`;
   }
 }
 
-function renderTimeline(document) {
-  const events = sortEvents(document.events);
-  title.textContent = document.title;
+function renderTimeline(timelineDocument) {
+  const events = sortEvents(timelineDocument.events);
+  title.textContent = timelineDocument.title;
   summary.textContent = `${events.length} event${events.length === 1 ? "" : "s"} in this timeline.`;
   timelineEl.innerHTML = "";
 
@@ -58,13 +58,25 @@ function renderTimeline(document) {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="timeline-card">
+        ${renderEventImage(event)}
         <h2>${escapeHtml(getEventTitle(event))}</h2>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
+        ${renderImageLink(event.imageLink)}
         ${renderFieldSummary(event.fields)}
       </div>
     `;
     timelineEl.append(row);
   }
+}
+
+function renderEventImage(event) {
+  if (!event.image?.dataUrl) return "";
+  return `<img class="timeline-image" src="${escapeHtml(event.image.dataUrl)}" alt="">`;
+}
+
+function renderImageLink(imageLink) {
+  if (!imageLink) return "";
+  return `<a class="small" href="${escapeHtml(imageLink)}" target="_blank" rel="noreferrer">Image link</a>`;
 }
 
 function renderFieldSummary(fields) {
