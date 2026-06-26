@@ -39,14 +39,29 @@ The editor uses browser IndexedDB, so it is best to run through a local server i
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 1,
+  "version": 2,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "events": [
     {
       "id": "uuid",
-      "name": "Started a new project",
-      "date": "2026-06-25"
+      "type": "job",
+      "title": "Started a new project",
+      "timestamp": {
+        "date": "2026-06-25",
+        "time": "09:00",
+        "tz": "America/Vancouver"
+      },
+      "location": "Vancouver, BC",
+      "fields": [
+        {
+          "id": "uuid",
+          "key": "role",
+          "label": "Role",
+          "type": "text",
+          "value": "Lead developer"
+        }
+      ]
     }
   ]
 }

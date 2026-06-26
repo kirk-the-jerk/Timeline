@@ -28,13 +28,57 @@
               <input id="timeline-title" type="text" autocomplete="off">
             </div>
             <div class="field">
-              <label for="event-date">Event date</label>
-              <input id="event-date" type="date" required>
+              <label for="event-type">Event type</label>
+              <select id="event-type"></select>
             </div>
             <div class="field">
-              <label for="event-name">Event name</label>
-              <input id="event-name" type="text" placeholder="Started a new project" required autocomplete="off">
+              <label for="event-title">Event title</label>
+              <input id="event-title" type="text" placeholder="Started a new project" required autocomplete="off">
             </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="event-date">Date</label>
+                <input id="event-date" type="date" required>
+              </div>
+              <div class="field">
+                <label for="event-time">Time</label>
+                <input id="event-time" type="time">
+              </div>
+            </div>
+            <div class="field">
+              <label for="event-tz">Time zone</label>
+              <select id="event-tz"></select>
+            </div>
+            <div class="field">
+              <label for="event-location">Location</label>
+              <input id="event-location" type="text" placeholder="Vancouver, BC" autocomplete="off">
+            </div>
+
+            <section class="field-builder" aria-label="Additional fields">
+              <h2>Additional fields</h2>
+              <div class="field-grid">
+                <div class="field">
+                  <label for="field-preset">Preset field</label>
+                  <select id="field-preset"></select>
+                </div>
+                <div class="field add-field-action">
+                  <label aria-hidden="true">&nbsp;</label>
+                  <button type="button" id="add-preset-field">Add preset</button>
+                </div>
+              </div>
+              <div class="field-grid">
+                <div class="field">
+                  <label for="custom-field-label">Custom field</label>
+                  <input id="custom-field-label" type="text" placeholder="Favorite meal" autocomplete="off">
+                </div>
+                <div class="field add-field-action">
+                  <label aria-hidden="true">&nbsp;</label>
+                  <button type="button" id="add-custom-field">Add custom</button>
+                </div>
+              </div>
+              <div class="custom-fields" id="custom-fields"></div>
+            </section>
+
             <div class="button-row">
               <button class="primary" type="submit">Add event</button>
               <button type="button" id="add-dummy">Add dummy</button>

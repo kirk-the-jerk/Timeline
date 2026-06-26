@@ -1,4 +1,4 @@
-import { formatDisplayDate, readTimelineFile, sortEvents } from "./timeline.js";
+import { formatDisplayTimestamp, getEventTitle, getEventTypeLabel, readTimelineFile, sortEvents } from "./timeline.js";
 
 const fileInput = document.querySelector("#timeline-file");
 const dropZone = document.querySelector("#drop-zone");
@@ -56,13 +56,31 @@ function renderTimeline(document) {
     const row = document.createElement("article");
     row.className = "timeline-event";
     row.innerHTML = `
-      <div class="event-date">${escapeHtml(formatDisplayDate(event.date))}</div>
+      <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="timeline-card">
-        <h2>${escapeHtml(event.name)}</h2>
+        <h2>${escapeHtml(getEventTitle(event))}</h2>
+        <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
+        ${renderFieldSummary(event.fields)}
       </div>
     `;
     timelineEl.append(row);
   }
+}
+
+function renderFieldSummary(fields) {
+  const populatedFields = fields.filter((field) => field.value);
+  if (populatedFields.length === 0) return "";
+
+  return `
+    <dl class="field-summary">
+      ${populatedFields.map((field) => `
+        <div>
+          <dt>${escapeHtml(field.label)}</dt>
+          <dd>${escapeHtml(field.value)}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
 }
 
 function escapeHtml(value) {

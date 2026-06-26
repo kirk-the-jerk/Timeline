@@ -199,7 +199,10 @@ button:disabled {
 
 input[type="text"],
 input[type="date"],
-input[type="file"] {
+input[type="time"],
+input[type="url"],
+input[type="file"],
+select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -208,6 +211,28 @@ input[type="file"] {
   color: var(--text);
   padding: 8px 10px;
   font: inherit;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.field-builder {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.field-builder h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.add-field-action {
+  align-self: end;
 }
 
 .status {
@@ -224,7 +249,7 @@ input[type="file"] {
 
 .event-item {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) auto;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -240,6 +265,54 @@ input[type="file"] {
 
 .event-name {
   overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.event-summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.custom-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-field-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.custom-field-row label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.field-summary {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+}
+
+.field-summary div {
+  display: grid;
+  grid-template-columns: minmax(90px, 140px) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.field-summary dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.field-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .empty-state,
@@ -250,6 +323,11 @@ input[type="file"] {
   color: var(--muted);
   padding: 28px;
   text-align: center;
+}
+
+.empty-state.compact {
+  padding: 12px;
+  text-align: left;
 }
 
 .drop-zone {
@@ -333,6 +411,12 @@ input[type="file"] {
   }
 
   .event-item {
+    grid-template-columns: 1fr;
+  }
+
+  .field-grid,
+  .custom-field-row,
+  .field-summary div {
     grid-template-columns: 1fr;
   }
 
