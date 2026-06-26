@@ -11,7 +11,7 @@ import {
   downloadTimeline,
   EVENT_TYPES,
   FIELD_PRESETS,
-  formatDisplayTimestamp,
+  formatDisplayDate,
   getAvailableTimeZones,
   getBrowserTimeZone,
   getEventTimeZone,
@@ -75,9 +75,8 @@ const addCustomFieldButton = document.querySelector("#add-custom-field");
 const customFields = document.querySelector("#custom-fields");
 const submitEventButton = document.querySelector("#submit-event");
 const cancelEditButton = document.querySelector("#cancel-edit");
-const addDummyButton = document.querySelector("#add-dummy");
 const eventList = document.querySelector("#event-list");
-const status = document.querySelector("#status");
+const toastRegion = document.querySelector("#toast-region");
 
 let timeline = createEmptyTimeline();
 let draftFields = [];
@@ -102,7 +101,8 @@ createTimelineLoadController({
     lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
     setTitleEditing(false, { focus: false });
     resetEventForm();
-    await persist(loadedImportMessage(file, diagnostics));
+    const importStatus = loadedImportStatus(file, diagnostics);
+    await persist(importStatus.message, importStatus.level);
   },
   onStatus: setStatus
 });
@@ -120,7 +120,7 @@ async function init() {
     render();
     setStatus("Loaded local draft from IndexedDB.");
   } catch (error) {
-    setStatus(`Could not load local draft: ${error.message}`);
+    setStatus(`Could not load local draft: ${error.message}`, "error");
   }
 }
 
@@ -135,7 +135,7 @@ form.addEventListener("submit", async (event) => {
   if (editingEventId && !previousEvent) {
     resetEventForm();
     render();
-    setStatus("Could not update because the event no longer exists.");
+    setStatus("Could not update because the event no longer exists.", "error");
     return;
   }
 
@@ -297,7 +297,7 @@ imageDropZone.addEventListener("drop", async (event) => {
   imageDropZone.classList.remove("dragging");
   const files = [...event.dataTransfer.files].filter((item) => item.type.startsWith("image/"));
   if (files.length === 0) {
-    setStatus("Drop did not include an image file.");
+    setStatus("Drop did not include an image file.", "warning");
     return;
   }
   await addDraftImagesFromFiles(files);
@@ -343,39 +343,6 @@ document.addEventListener("paste", async (event) => {
   if (isSafeHttpUrl(text)) addDraftImageLink(text);
 });
 
-addDummyButton.addEventListener("click", async () => {
-  const number = timeline.events.length + 1;
-  const type = EVENT_TYPES[number % EVENT_TYPES.length].value;
-  const dummyEvent = createEvent({
-    type,
-    date: randomDate(),
-    time: number % 2 === 0 ? "09:30" : "",
-    tz: lastTimeZone,
-    title: `Dummy ${getEventTypeLabel(type).toLowerCase()} event ${number}`,
-    location: number % 2 === 0 ? "Sample City" : "",
-    images: number % 3 === 0
-      ? [{
-        id: crypto.randomUUID(),
-        kind: "link",
-        url: "https://example.com/sample-image.jpg",
-        caption: ""
-      }]
-      : [],
-    fields: [
-      {
-        key: "summary",
-        label: "Summary",
-        type: "text",
-        value: "Placeholder detail for schema testing."
-      }
-    ]
-  });
-
-  lastTimeZone = getEventTimeZone(dummyEvent) || lastTimeZone;
-  timeline.events = sortEvents([...timeline.events, dummyEvent]);
-  await persist("Dummy event added.");
-});
-
 async function clearTimelineDraft() {
   timeline = createEmptyTimeline();
   await clearActiveTimeline();
@@ -408,13 +375,13 @@ async function saveTimelineAs(format) {
 
   if (format === "zip") {
     saveDialogStatus.textContent = "ZIP export is not implemented yet.";
-    setStatus("ZIP export is not implemented yet.");
+    setStatus("ZIP export is not implemented yet.", "warning");
     return;
   }
 
   if (format === "html-images") {
     saveDialogStatus.textContent = "HTML + images export is not implemented yet.";
-    setStatus("HTML + images export is not implemented yet.");
+    setStatus("HTML + images export is not implemented yet.", "warning");
   }
 }
 
@@ -456,23 +423,25 @@ eventList.addEventListener("click", async (event) => {
   await persist("Event deleted.");
 });
 
-async function persist(message) {
+async function persist(message, level = "info") {
   timeline.title = getTimelineTitleValue();
   timeline = normalizeTimeline(await saveActiveTimeline(timeline));
   render();
-  setStatus(message);
+  setStatus(message, level);
 }
 
-function loadedImportMessage(file, diagnostics) {
+function loadedImportStatus(file, diagnostics) {
   const errors = diagnostics.filter((diagnostic) => diagnostic.level === "error").length;
   const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "warning").length;
   const details = [
     errors > 0 ? `${errors} schema error${errors === 1 ? "" : "s"}` : "",
     warnings > 0 ? `${warnings} schema warning${warnings === 1 ? "" : "s"}` : ""
   ].filter(Boolean);
-  return details.length > 0
+  const message = details.length > 0
     ? `Loaded ${file.name} with ${details.join(" and ")}.`
     : `Loaded ${file.name}.`;
+  const level = errors > 0 ? "error" : warnings > 0 ? "warning" : "info";
+  return { message, level };
 }
 
 function populateEventTypes() {
@@ -504,7 +473,7 @@ function render() {
   eventList.innerHTML = "";
 
   if (timeline.events.length === 0) {
-    eventList.innerHTML = `<div class="empty-state">No events yet. Add one manually or create a dummy event.</div>`;
+    eventList.innerHTML = `<div class="empty-state">No events yet. Add one manually.</div>`;
     return;
   }
 
@@ -512,7 +481,7 @@ function render() {
     const row = document.createElement("article");
     row.className = event.id === editingEventId ? "event-item editing" : "event-item";
     row.innerHTML = `
-      <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
+      <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp))}</div>
       <div class="event-summary">
         ${renderEventThumbnail(event)}
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
@@ -520,12 +489,31 @@ function render() {
         ${renderFieldSummary(event.fields)}
       </div>
       <div class="event-actions">
-        <button type="button" data-edit-id="${escapeHtml(event.id)}">Edit</button>
-        <button type="button" data-delete-id="${escapeHtml(event.id)}">Delete</button>
+        <button class="icon-button" type="button" data-edit-id="${escapeHtml(event.id)}" aria-label="Edit event" title="Edit">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+          </svg>
+        </button>
+        <button class="icon-button danger" type="button" data-delete-id="${escapeHtml(event.id)}" aria-label="Delete event" title="Delete">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18"></path>
+            <path d="M8 6V4h8v2"></path>
+            <path d="m19 6-1 14H6L5 6"></path>
+            <path d="M10 11v5"></path>
+            <path d="M14 11v5"></path>
+          </svg>
+        </button>
       </div>
     `;
     eventList.append(row);
   }
+}
+
+function formatEditorEventTimestamp(timestamp) {
+  if (!timestamp?.date) return "No date";
+  const timeText = timestamp.time && timestamp.time !== "00:00" ? ` ${timestamp.time}` : "";
+  return `${formatDisplayDate(timestamp.date)}${timeText}`;
 }
 
 function renderTimelineTitle() {
@@ -681,7 +669,6 @@ function resetEventForm() {
   formTitle.textContent = "Add event";
   submitEventButton.textContent = "Add event";
   cancelEditButton.hidden = true;
-  addDummyButton.hidden = false;
   typeInput.value = "life";
   eventTitleInput.value = "";
   dateInput.value = new Date().toISOString().slice(0, 10);
@@ -740,7 +727,7 @@ function openPopulatedOptionalSections() {
 function startEditingEvent(eventId) {
   const event = timeline.events.find((item) => item.id === eventId);
   if (!event) {
-    setStatus("Could not edit because the event no longer exists.");
+    setStatus("Could not edit because the event no longer exists.", "error");
     return;
   }
 
@@ -748,7 +735,6 @@ function startEditingEvent(eventId) {
   formTitle.textContent = "Edit event";
   submitEventButton.textContent = "Save changes";
   cancelEditButton.hidden = false;
-  addDummyButton.hidden = true;
 
   typeInput.value = event.type;
   eventTitleInput.value = getEventTitle(event);
@@ -791,14 +777,14 @@ async function addDraftImagesFromFiles(files) {
     renderImagePreview();
     setStatus(`${nextImages.length} image${nextImages.length === 1 ? "" : "s"} added as resized JPEG${nextImages.length === 1 ? "" : "s"} with metadata removed.`);
   } catch (error) {
-    setStatus(`Image failed: ${error.message}`);
+    setStatus(`Image failed: ${error.message}`, "error");
   }
 }
 
 function addDraftImageLink(url = imageLinkInput.value) {
   const safeUrl = String(url || "").trim();
   if (!isSafeHttpUrl(safeUrl)) {
-    setStatus("Image URL must start with http:// or https://.");
+    setStatus("Image URL must start with http:// or https://.", "warning");
     return;
   }
 
@@ -943,15 +929,28 @@ function removeUnusedMediaForEvent(deletedEvent) {
   timeline.media = timeline.media.filter((item) => !deletedMediaIds.has(item.id) || usedMediaIds.has(item.id));
 }
 
-function setStatus(message) {
-  status.textContent = message;
+function setStatus(message, level = inferStatusLevel(message)) {
+  if (!message) return;
+  const toast = document.createElement("div");
+  const safeLevel = ["info", "warning", "error"].includes(level) ? level : "info";
+  toast.className = `toast ${safeLevel}`;
+  toast.textContent = message;
+  if (safeLevel === "error") toast.setAttribute("role", "alert");
+
+  toastRegion.append(toast);
+  while (toastRegion.children.length > 4) {
+    toastRegion.firstElementChild.remove();
+  }
+  window.setTimeout(() => {
+    toast.remove();
+  }, safeLevel === "error" ? 7000 : 4500);
 }
 
-function randomDate() {
-  const year = 2018 + Math.floor(Math.random() * 9);
-  const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, "0");
-  const day = String(1 + Math.floor(Math.random() * 28)).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function inferStatusLevel(message) {
+  const text = String(message || "").toLowerCase();
+  if (text.includes("could not") || text.includes("failed") || text.includes("error")) return "error";
+  if (text.includes("warning") || text.includes("not implemented") || text.includes("must") || text.includes("did not")) return "warning";
+  return "info";
 }
 
 function escapeHtml(value) {
