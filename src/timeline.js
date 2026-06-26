@@ -148,7 +148,7 @@ export function downloadTimeline(timeline) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${slugify(safeTimeline.title)}.timeline.json`;
+  link.download = `${formatTimelineDownloadBaseName(safeTimeline.title)}.timeline.json`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -783,4 +783,20 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "timeline";
+}
+
+export function formatTimelineDownloadBaseName(title, date = new Date()) {
+  return `${slugify(title)}-[${formatFilenameTimestamp(date)}]`;
+}
+
+function formatFilenameTimestamp(date) {
+  const value = date instanceof Date ? date : new Date(date);
+  const pad = (number) => String(number).padStart(2, "0");
+  return [
+    value.getFullYear(),
+    pad(value.getMonth() + 1),
+    pad(value.getDate()),
+    pad(value.getHours()),
+    pad(value.getMinutes())
+  ].join("");
 }

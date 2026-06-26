@@ -36,8 +36,11 @@ const topbar = document.querySelector(".topbar");
 const headerActions = document.querySelector("#header-actions");
 const openSaveDialogButton = document.querySelector("#open-save-dialog");
 const saveDialog = document.querySelector("#save-dialog");
+const saveForm = document.querySelector("#save-form");
 const closeSaveDialogButton = document.querySelector("#close-save-dialog");
 const saveDialogStatus = document.querySelector("#save-dialog-status");
+const exportTimelineTitleInput = document.querySelector("#export-timeline-title");
+const htmlPlayerField = document.querySelector("#html-player-field");
 const htmlPlayerTypeInput = document.querySelector("#html-player-type");
 const openLoadFileButton = document.querySelector("#open-load-file");
 const loadFileInput = document.querySelector("#load-file");
@@ -199,6 +202,7 @@ titleInput.addEventListener("keydown", async (event) => {
 
 openSaveDialogButton.addEventListener("click", () => {
   saveDialogStatus.textContent = "";
+  prepareSaveDialog();
   showDialog(saveDialog);
 });
 
@@ -210,11 +214,13 @@ saveDialog.addEventListener("click", (event) => {
   if (event.target === saveDialog) saveDialog.close();
 });
 
-saveDialog.addEventListener("click", (event) => {
-  if (event.target.closest(".info-button")) return;
-  const option = event.target.closest("[data-save-format]");
-  if (!option) return;
-  saveTimelineAs(option.dataset.saveFormat);
+saveForm.addEventListener("change", updateSaveFormatControls);
+
+saveForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const selectedFormat = getSelectedSaveFormat();
+  if (!selectedFormat) return;
+  saveTimelineAs(selectedFormat);
 });
 
 clearTimelineButton.addEventListener("click", async () => {
@@ -380,10 +386,13 @@ async function clearTimelineDraft() {
 }
 
 async function saveTimelineAs(format) {
-  timeline.title = getTimelineTitleValue();
+  const exportTimeline = {
+    ...timeline,
+    title: getExportTimelineTitleValue()
+  };
 
   if (format === "json") {
-    downloadTimeline(timeline);
+    downloadTimeline(exportTimeline);
     saveDialog.close();
     setStatus("JSON export started.");
     return;
@@ -391,7 +400,7 @@ async function saveTimelineAs(format) {
 
   if (format === "html-single") {
     const player = getPlayerType(htmlPlayerTypeInput.value);
-    downloadStandaloneHtml(timeline, player.value);
+    downloadStandaloneHtml(exportTimeline, player.value);
     saveDialog.close();
     setStatus(`${player.label} HTML export started.`);
     return;
@@ -407,6 +416,27 @@ async function saveTimelineAs(format) {
     saveDialogStatus.textContent = "HTML + images export is not implemented yet.";
     setStatus("HTML + images export is not implemented yet.");
   }
+}
+
+function prepareSaveDialog() {
+  exportTimelineTitleInput.value = getTimelineTitleValue();
+  updateSaveFormatControls();
+}
+
+function getExportTimelineTitleValue() {
+  return exportTimelineTitleInput.value.trim() || "Untitled timeline";
+}
+
+function getSelectedSaveFormat() {
+  return saveForm.querySelector('input[name="save-format"]:checked')?.value || "";
+}
+
+function updateSaveFormatControls() {
+  htmlPlayerField.hidden = !isHtmlSaveFormat(getSelectedSaveFormat());
+}
+
+function isHtmlSaveFormat(format) {
+  return format === "html-single" || format === "html-images";
 }
 
 eventList.addEventListener("click", async (event) => {

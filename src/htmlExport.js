@@ -1,4 +1,4 @@
-import { normalizeTimeline } from "./timeline.js";
+import { formatTimelineDownloadBaseName, normalizeTimeline } from "./timeline.js";
 import { getPlayerType, normalizePlayerType } from "./players.js";
 
 export function downloadStandaloneHtml(timeline, playerType = "simple") {
@@ -12,7 +12,7 @@ export function downloadStandaloneHtml(timeline, playerType = "simple") {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${slugify(safeTimeline.title)}.timeline.html`;
+  link.download = `${formatTimelineDownloadBaseName(safeTimeline.title)}.timeline.html`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -498,12 +498,4 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function slugify(value) {
-  return String(value || "timeline")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64) || "timeline";
 }

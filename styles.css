@@ -838,19 +838,36 @@ select {
 .save-options {
   display: grid;
   gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .save-option {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: 12px;
   width: 100%;
   min-height: 0;
   padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
   text-align: left;
+  cursor: pointer;
 }
 
-.save-option > span:first-child {
+.save-option:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(43, 106, 79, 0.14);
+}
+
+.save-option input {
+  margin: 3px 0 0;
+}
+
+.save-option > span:nth-child(2) {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -858,6 +875,12 @@ select {
 
 .save-option.unavailable {
   opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.save-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .info-button {
