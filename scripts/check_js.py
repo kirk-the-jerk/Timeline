@@ -9,6 +9,7 @@ JS_FILES = [
     "src/timeline.js",
     "src/fileLoad.js",
     "src/db.js",
+    "src/players.js",
     "src/editor.js",
     "src/player.js",
     "src/htmlExport.js",

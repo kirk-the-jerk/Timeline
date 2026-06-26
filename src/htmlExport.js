@@ -1,11 +1,13 @@
 import { normalizeTimeline } from "./timeline.js";
+import { getPlayerType, normalizePlayerType } from "./players.js";
 
-export function downloadStandaloneHtml(timeline) {
+export function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safeTimeline = normalizeTimeline({
     ...timeline,
     updatedAt: new Date().toISOString()
   });
-  const html = buildStandaloneHtml(safeTimeline);
+  const safePlayerType = normalizePlayerType(playerType);
+  const html = buildStandaloneHtml(safeTimeline, safePlayerType);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -17,9 +19,11 @@ export function downloadStandaloneHtml(timeline) {
   URL.revokeObjectURL(url);
 }
 
-function buildStandaloneHtml(timeline) {
+function buildStandaloneHtml(timeline, playerType) {
   const title = escapeHtml(timeline.title);
   const timelineJson = JSON.stringify(timeline).replaceAll("<", "\\u003c");
+  const player = getPlayerType(playerType);
+  const playerJson = JSON.stringify(player).replaceAll("<", "\\u003c");
 
   return `<!doctype html>
 <html lang="en">
@@ -41,6 +45,7 @@ function buildStandaloneHtml(timeline) {
       <section class="timeline" id="timeline"></section>
     </main>
     <script type="application/json" id="timeline-data">${timelineJson}</script>
+    <script type="application/json" id="player-data">${playerJson}</script>
     <script>${standaloneRuntime()}</script>
   </body>
 </html>
@@ -178,6 +183,10 @@ p {
   padding: 28px;
   text-align: center;
 }
+.placeholder-player {
+  display: grid;
+  gap: 8px;
+}
 a {
   color: #245650;
 }
@@ -205,6 +214,7 @@ function standaloneRuntime() {
   };
 
   const timelineData = JSON.parse(document.getElementById("timeline-data").textContent);
+  const playerData = JSON.parse(document.getElementById("player-data").textContent);
   const title = document.getElementById("timeline-title");
   const summary = document.getElementById("timeline-summary");
   const timeline = document.getElementById("timeline");
@@ -212,7 +222,12 @@ function standaloneRuntime() {
   const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
 
   title.textContent = timelineData.title || "Untitled timeline";
-  summary.textContent = events.length + " event" + (events.length === 1 ? "" : "s");
+  summary.textContent = playerData.label + " player / " + events.length + " event" + (events.length === 1 ? "" : "s");
+
+  if (playerData.value !== "simple") {
+    renderPlaceholderPlayer(events.length);
+    return;
+  }
 
   if (events.length === 0) {
     timeline.innerHTML = '<div class="empty-state">This timeline does not contain any events.</div>';
@@ -256,6 +271,24 @@ function standaloneRuntime() {
 
     row.append(date, card);
     timeline.append(row);
+  }
+
+  function renderPlaceholderPlayer(eventCount) {
+    timeline.innerHTML = "";
+    const placeholder = document.createElement("div");
+    placeholder.className = "empty-state placeholder-player";
+
+    const title = document.createElement("strong");
+    title.textContent = playerData.label + " player placeholder";
+
+    const description = document.createElement("span");
+    description.textContent = playerData.description || "Player placeholder.";
+
+    const count = document.createElement("span");
+    count.textContent = eventCount + " event" + (eventCount === 1 ? "" : "s") + " loaded.";
+
+    placeholder.append(title, description, count);
+    timeline.append(placeholder);
   }
 
   function sortEvents(events) {

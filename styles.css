@@ -150,6 +150,64 @@ a {
   flex-wrap: wrap;
 }
 
+.dropdown-menu {
+  position: relative;
+}
+
+.dropdown-menu summary {
+  list-style: none;
+}
+
+.dropdown-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.dropdown-menu summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.dropdown-menu[open] summary::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.dropdown-panel {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  min-width: 168px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 14px 30px rgba(34, 34, 34, 0.14);
+}
+
+.button-row .dropdown-panel {
+  left: 0;
+  right: auto;
+}
+
+.dropdown-panel a {
+  display: block;
+  padding: 10px 12px;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dropdown-panel a:hover,
+.dropdown-panel a:focus {
+  background: var(--panel-soft);
+}
+
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
@@ -518,6 +576,11 @@ select {
 .empty-state.compact {
   padding: 12px;
   text-align: left;
+}
+
+.placeholder-player {
+  display: grid;
+  gap: 8px;
 }
 
 .drop-zone {

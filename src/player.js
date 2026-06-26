@@ -1,4 +1,5 @@
 import { createTimelineLoadController } from "./fileLoad.js";
+import { getPlayerType, normalizePlayerType } from "./players.js";
 import {
   canRenderImageMedia,
   formatDisplayTimestamp,
@@ -23,6 +24,7 @@ const summary = document.querySelector("#timeline-summary");
 const timelineEl = document.querySelector("#timeline");
 
 let timelineDocument = null;
+const selectedPlayer = getPlayerType(getRequestedPlayerType());
 
 createTimelineLoadController({
   dialog: loadDialog,
@@ -59,7 +61,7 @@ function init() {
 
 function renderEmptyState() {
   titleText.textContent = "No timeline loaded";
-  summary.textContent = "Use the load button in the header or drop a timeline file onto the header.";
+  summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header or drop a timeline file onto the header.`;
   timelineEl.innerHTML = `<div class="empty-state">No timeline loaded.</div>`;
   loadButton.classList.add("attention");
 }
@@ -68,9 +70,14 @@ function renderTimeline(loadedTimeline) {
   timelineDocument = loadedTimeline;
   const events = sortEvents(timelineDocument.events);
   titleText.textContent = timelineDocument.title;
-  summary.textContent = `${events.length} event${events.length === 1 ? "" : "s"} in this timeline.`;
+  summary.textContent = `${selectedPlayer.label} player / ${events.length} event${events.length === 1 ? "" : "s"} in this timeline.`;
   timelineEl.innerHTML = "";
   loadButton.classList.remove("attention");
+
+  if (selectedPlayer.value !== "simple") {
+    renderPlaceholderPlayer(events.length);
+    return;
+  }
 
   if (events.length === 0) {
     timelineEl.innerHTML = `<div class="empty-state">This timeline does not contain any events.</div>`;
@@ -92,6 +99,21 @@ function renderTimeline(loadedTimeline) {
     `;
     timelineEl.append(row);
   }
+}
+
+function renderPlaceholderPlayer(eventCount) {
+  timelineEl.innerHTML = `
+    <div class="empty-state placeholder-player">
+      <strong>${escapeHtml(selectedPlayer.label)} player placeholder</strong>
+      <span>${escapeHtml(selectedPlayer.description)}</span>
+      <span>${eventCount} event${eventCount === 1 ? "" : "s"} loaded.</span>
+    </div>
+  `;
+}
+
+function getRequestedPlayerType() {
+  const params = new URLSearchParams(window.location.search);
+  return normalizePlayerType(params.get("player"));
 }
 
 function renderEventImage(event) {

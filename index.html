@@ -15,7 +15,15 @@
         </div>
         <nav class="nav-links" aria-label="App pages">
           <a class="button" href="editor.html">Editor</a>
-          <a class="button" href="player.html">Player</a>
+          <details class="dropdown-menu">
+            <summary class="button">Player</summary>
+            <div class="dropdown-panel">
+              <a href="player.html?player=simple">Simple</a>
+              <a href="player.html?player=timeline">Timeline</a>
+              <a href="player.html?player=slideshow">Slideshow</a>
+              <a href="player.html?player=map">Map</a>
+            </div>
+          </details>
         </nav>
       </header>
 
@@ -29,7 +37,15 @@
           </p>
           <div class="button-row">
             <a class="button primary" href="editor.html">Launch editor</a>
-            <a class="button" href="player.html">Open player</a>
+            <details class="dropdown-menu">
+              <summary class="button">Open player</summary>
+              <div class="dropdown-panel">
+                <a href="player.html?player=simple">Simple</a>
+                <a href="player.html?player=timeline">Timeline</a>
+                <a href="player.html?player=slideshow">Slideshow</a>
+                <a href="player.html?player=map">Map</a>
+              </div>
+            </details>
           </div>
         </div>
         <div class="product-visual" aria-label="Timeline scrapbook preview"></div>
@@ -46,7 +62,7 @@
         </article>
         <article class="info-card">
           <h2>Exportable</h2>
-          <p>The current artifact is a JSON backup file. A future HTML export can embed the same JSON inside the player shell.</p>
+          <p>Save an editable JSON backup or a standalone HTML file with the selected player embedded.</p>
         </article>
       </section>
     </main>

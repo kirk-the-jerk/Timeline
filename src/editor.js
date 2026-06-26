@@ -1,6 +1,7 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
 import { createTimelineLoadController, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
+import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
   canRenderImageMedia,
   createCustomField,
@@ -37,6 +38,7 @@ const openSaveDialogButton = document.querySelector("#open-save-dialog");
 const saveDialog = document.querySelector("#save-dialog");
 const closeSaveDialogButton = document.querySelector("#close-save-dialog");
 const saveDialogStatus = document.querySelector("#save-dialog-status");
+const htmlPlayerTypeInput = document.querySelector("#html-player-type");
 const openLoadFileButton = document.querySelector("#open-load-file");
 const loadFileInput = document.querySelector("#load-file");
 const loadDialog = document.querySelector("#load-dialog");
@@ -107,6 +109,7 @@ async function init() {
   populateEventTypes();
   populateTimeZones();
   populateFieldPresets();
+  populateHtmlPlayerTypes();
 
   try {
     timeline = await loadActiveTimeline();
@@ -339,9 +342,10 @@ async function saveTimelineAs(format) {
   }
 
   if (format === "html-single") {
-    downloadStandaloneHtml(timeline);
+    const player = getPlayerType(htmlPlayerTypeInput.value);
+    downloadStandaloneHtml(timeline, player.value);
     saveDialog.close();
-    setStatus("Standalone HTML export started.");
+    setStatus(`${player.label} HTML export started.`);
     return;
   }
 
@@ -396,6 +400,12 @@ function populateTimeZones() {
 function populateFieldPresets() {
   fieldPresetInput.innerHTML = FIELD_PRESETS
     .map((field) => `<option value="${escapeHtml(field.key)}">${escapeHtml(field.label)}</option>`)
+    .join("");
+}
+
+function populateHtmlPlayerTypes() {
+  htmlPlayerTypeInput.innerHTML = PLAYER_TYPES
+    .map((player) => `<option value="${escapeHtml(player.value)}">${escapeHtml(player.label)} - ${escapeHtml(player.description)}</option>`)
     .join("");
 }
 
