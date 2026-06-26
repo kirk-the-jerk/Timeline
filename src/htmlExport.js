@@ -148,14 +148,74 @@ p {
   color: var(--muted);
   font-size: 0.92rem;
 }
-.timeline-image {
+.event-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.event-gallery.image-count-1 {
+  grid-template-columns: 1fr;
+}
+.gallery-item {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+}
+.gallery-item img {
   display: block;
   width: 100%;
-  max-height: 380px;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 6px;
-  margin-bottom: 12px;
+}
+.gallery-item figcaption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.source-icon,
+.gallery-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fbfaf7;
+  color: #245650;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.source-icon {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+}
+.source-icon .icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.gallery-overflow {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: rgba(255, 255, 255, 0.92);
 }
 .field-summary {
   display: grid;
@@ -245,14 +305,8 @@ function standaloneRuntime() {
     const card = document.createElement("div");
     card.className = "timeline-card";
 
-    const eventImage = resolveEventImage(event);
-    if (canRenderImageMedia(eventImage)) {
-      const image = document.createElement("img");
-      image.className = "timeline-image";
-      image.src = eventImage.dataUrl;
-      image.alt = "";
-      card.append(image);
-    }
+    const gallery = makeEventGallery(event);
+    if (gallery) card.append(gallery);
 
     const heading = document.createElement("h2");
     heading.textContent = event.title || "Untitled event";
@@ -262,9 +316,6 @@ function standaloneRuntime() {
     meta.className = "small";
     meta.textContent = (EVENT_TYPES[event.type] || "Life") + (event.location ? " / " + event.location : "");
     card.append(meta);
-
-    const imageLink = makeImageLink(event.imageLink);
-    if (imageLink) card.append(imageLink);
 
     const fieldSummary = makeFieldSummary(event.fields || []);
     if (fieldSummary) card.append(fieldSummary);
@@ -321,27 +372,91 @@ function standaloneRuntime() {
     return dateText + " " + (safeTimestamp.time || "00:00") + " " + (safeTimestamp.tz || "");
   }
 
-  function makeImageLink(url) {
-    if (!isSafeHttpUrl(url)) return null;
-    const link = document.createElement("a");
-    link.className = "small";
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.textContent = "Image link";
-    return link;
-  }
-
-  function resolveEventImage(event) {
-    if (event.imageId && mediaById.has(event.imageId)) return mediaById.get(event.imageId);
-    return event.image || null;
-  }
-
   function canRenderImageMedia(media) {
     return media
       && media.kind === "image"
       && media.mimeType === "image/jpeg"
       && String(media.dataUrl || "").startsWith("data:image/jpeg;base64,");
+  }
+
+  function makeEventGallery(event) {
+    const images = resolveEventImages(event).filter((image) => image.kind === "link" || canRenderImageMedia(image.media));
+    if (images.length === 0) return null;
+
+    const gallery = document.createElement("div");
+    const visibleImages = images.slice(0, 4);
+    gallery.className = "event-gallery image-count-" + Math.min(visibleImages.length, 4);
+
+    visibleImages.forEach((image, index) => {
+      const item = document.createElement("figure");
+      item.className = "gallery-item";
+
+      const img = document.createElement("img");
+      img.src = image.kind === "embedded" ? image.media.dataUrl : image.url;
+      img.alt = image.caption || "";
+
+      item.append(img, makeSourceIcon(image.kind));
+      if (image.caption) {
+        const caption = document.createElement("figcaption");
+        const captionText = document.createElement("span");
+        captionText.textContent = image.caption;
+        caption.append(captionText);
+        item.append(caption);
+      }
+
+      if (images.length > visibleImages.length && index === 3) {
+        const overflow = document.createElement("span");
+        overflow.className = "gallery-overflow";
+        overflow.textContent = "+" + (images.length - visibleImages.length);
+        item.append(overflow);
+      }
+
+      gallery.append(item);
+    });
+
+    return gallery;
+  }
+
+  function makeSourceIcon(kind) {
+    const icon = document.createElement("span");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const label = kind === "embedded" ? "Embedded image" : "Linked image";
+    icon.className = "source-icon";
+    icon.setAttribute("role", "img");
+    icon.setAttribute("aria-label", label);
+    icon.title = label;
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+
+    const paths = kind === "embedded"
+      ? [
+        "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z",
+        "M14 2v6h6"
+      ]
+      : [
+        "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
+        "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+      ];
+
+    for (const d of paths) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", d);
+      svg.append(path);
+    }
+
+    icon.append(svg);
+    return icon;
+  }
+
+  function resolveEventImages(event) {
+    return (event.images || []).map((image) => {
+      if (image && image.kind === "embedded" && mediaById.has(image.mediaId)) {
+        return Object.assign({}, image, { media: mediaById.get(image.mediaId) });
+      }
+      if (image && image.kind === "link" && isSafeHttpUrl(image.url)) return image;
+      return null;
+    }).filter(Boolean);
   }
 
   function makeFieldSummary(fields) {

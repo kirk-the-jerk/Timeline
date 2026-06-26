@@ -18,6 +18,7 @@ const FIXTURE_DIR = join(ROOT, "tests", "fixtures", "schema");
 function main() {
   checkV1Legacy();
   checkV2EmbeddedImage();
+  checkV4ImageGallery();
   checkFutureVersion();
   checkMalformedRecoverable();
   console.log("OK schema fixtures");
@@ -38,6 +39,7 @@ function checkV1Legacy() {
     "migrated-v1-timestamp",
     "migrated-v1-schema",
     "migrated-v2-schema",
+    "migrated-v3-schema",
     "default-time",
     "default-time-zone",
     "generated-event-id",
@@ -49,15 +51,27 @@ function checkV2EmbeddedImage() {
   const { timeline, diagnostics } = normalizeFixture("v2-embedded-image.timeline.json");
   assert.equal(timeline.version, TIMELINE_VERSION);
   assert.equal(timeline.events.length, 1);
-  assert.equal(timeline.media.length, 1);
-  assert.equal(timeline.events[0].imageId, timeline.media[0].id);
+  assert.equal(timeline.media.length, 0);
+  assert.deepEqual(timeline.events[0].images, []);
   assert.equal(timeline.events[0].image, undefined);
-  assert.equal(timeline.media[0].mimeType, "image/jpeg");
   assertCodesInclude(diagnostics, [
     "migrated-v2-schema",
-    "migrated-v2-image-media",
-    "generated-media-id"
+    "migrated-v3-schema",
+    "ignored-legacy-event-images"
   ]);
+}
+
+function checkV4ImageGallery() {
+  const { timeline, diagnostics } = normalizeFixture("v4-image-gallery.timeline.json");
+  assert.equal(timeline.version, TIMELINE_VERSION);
+  assert.equal(timeline.events.length, 1);
+  assert.equal(timeline.media.length, 1);
+  assert.equal(timeline.events[0].images.length, 2);
+  assert.equal(timeline.events[0].images[0].kind, "embedded");
+  assert.equal(timeline.events[0].images[0].mediaId, "media-1");
+  assert.equal(timeline.events[0].images[1].kind, "link");
+  assert.equal(timeline.events[0].images[1].url, "https://example.com/photo.jpg");
+  assert.equal(diagnostics.length, 0);
 }
 
 function checkFutureVersion() {
@@ -79,7 +93,8 @@ function checkMalformedRecoverable() {
     "invalid-media-dropped",
     "malformed-event-replaced",
     "invalid-fields-dropped",
-    "missing-media-reference",
+    "ignored-legacy-event-images",
+    "migrated-v3-schema",
     "duplicate-event-id",
     "unknown-event-type",
     "non-iso-date",

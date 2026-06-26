@@ -6,7 +6,7 @@ import {
   getEventTitle,
   getEventTypeLabel,
   normalizeTimeline,
-  resolveEventImage,
+  resolveEventImages,
   sortEvents
 } from "./timeline.js";
 
@@ -90,10 +90,9 @@ function renderTimeline(loadedTimeline) {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="timeline-card">
-        ${renderEventImage(event)}
+        ${renderEventGallery(event)}
         <h2>${escapeHtml(getEventTitle(event))}</h2>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
-        ${renderImageLink(event.imageLink)}
         ${renderFieldSummary(event.fields)}
       </div>
     `;
@@ -116,15 +115,48 @@ function getRequestedPlayerType() {
   return normalizePlayerType(params.get("player"));
 }
 
-function renderEventImage(event) {
-  const image = resolveEventImage(timelineDocument, event);
-  if (!canRenderImageMedia(image)) return "";
-  return `<img class="timeline-image" src="${escapeHtml(image.dataUrl)}" alt="">`;
+function renderEventGallery(event) {
+  const images = resolveEventImages(timelineDocument, event)
+    .filter((image) => image.kind === "link" || canRenderImageMedia(image.media));
+  if (images.length === 0) return "";
+
+  const visibleImages = images.slice(0, 4);
+  return `
+    <div class="event-gallery image-count-${Math.min(visibleImages.length, 4)}">
+      ${visibleImages.map((image, index) => renderGalleryImage(image, images.length - visibleImages.length, index)).join("")}
+    </div>
+  `;
 }
 
-function renderImageLink(imageLink) {
-  if (!imageLink) return "";
-  return `<a class="small" href="${escapeHtml(imageLink)}" target="_blank" rel="noreferrer">Image link</a>`;
+function renderGalleryImage(image, hiddenCount, index) {
+  const src = image.kind === "embedded" ? image.media.dataUrl : image.url;
+  const caption = image.caption || "";
+  return `
+    <figure class="gallery-item">
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(caption)}">
+      ${renderImageSourceIcon(image.kind)}
+      ${caption ? `<figcaption><span>${escapeHtml(caption)}</span></figcaption>` : ""}
+      ${hiddenCount > 0 && index === 3 ? `<span class="gallery-overflow">+${hiddenCount}</span>` : ""}
+    </figure>
+  `;
+}
+
+function renderImageSourceIcon(kind) {
+  const label = kind === "embedded" ? "Embedded image" : "Linked image";
+  const icon = kind === "embedded"
+    ? `
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+      <path d="M14 2v6h6"></path>
+    `
+    : `
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    `;
+  return `
+    <span class="source-icon" role="img" aria-label="${label}" title="${label}">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
+    </span>
+  `;
 }
 
 function renderFieldSummary(fields) {

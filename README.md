@@ -49,11 +49,11 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
 
 ## Schema Compatibility
 
-Current exports use schema version `3`.
+Current exports use schema version `4`.
 
 - Version 1-style events with `name` and `date` are migrated on import.
-- Version 2-style events with embedded `image` objects are migrated into top-level `media`.
-- Version 3 stores media separately in `media[]`; events reference images with `imageId`.
+- Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
+- Version 4 stores event image galleries in `events[].images[]`. Embedded image bytes live in top-level `media[]`; linked images store their URL directly in the gallery item.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
@@ -64,7 +64,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 3,
+  "version": 4,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "media": [
@@ -90,8 +90,20 @@ In IndexedDB, the active draft stores the timeline document and media records se
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",
-      "imageId": "image-uuid",
-      "imageLink": "https://example.com/photo.jpg",
+      "images": [
+        {
+          "id": "gallery-item-uuid",
+          "kind": "embedded",
+          "mediaId": "image-uuid",
+          "caption": "Launch day"
+        },
+        {
+          "id": "gallery-link-uuid",
+          "kind": "link",
+          "url": "https://example.com/photo.jpg",
+          "caption": ""
+        }
+      ],
       "fields": [
         {
           "id": "uuid",

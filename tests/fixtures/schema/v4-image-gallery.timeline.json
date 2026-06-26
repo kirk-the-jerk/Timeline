@@ -1,0 +1,45 @@
+{
+  "format": "local-timeline-poc",
+  "version": 4,
+  "title": "Version 4 image gallery",
+  "updatedAt": "2026-06-25T00:00:00.000Z",
+  "media": [
+    {
+      "id": "media-1",
+      "kind": "image",
+      "mimeType": "image/jpeg",
+      "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+      "width": 960,
+      "height": 640,
+      "originalName": "photo.jpg",
+      "encodedAt": "2026-06-25T00:00:00.000Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "event-with-gallery",
+      "type": "life",
+      "title": "Added a gallery",
+      "timestamp": {
+        "date": "2021-03-04",
+        "time": "12:30",
+        "tz": "America/Vancouver"
+      },
+      "images": [
+        {
+          "id": "gallery-image-1",
+          "kind": "embedded",
+          "mediaId": "media-1",
+          "caption": "Embedded photo"
+        },
+        {
+          "id": "gallery-image-2",
+          "kind": "link",
+          "url": "https://example.com/photo.jpg",
+          "caption": "Linked photo"
+        }
+      ],
+      "fields": []
+    }
+  ]
+}

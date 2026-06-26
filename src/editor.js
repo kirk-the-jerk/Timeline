@@ -19,7 +19,7 @@ import {
   getEventTypeLabel,
   makeFieldFromPreset,
   normalizeTimeline,
-  resolveEventImage,
+  resolveEventImages,
   sortEvents
 } from "./timeline.js";
 
@@ -59,6 +59,7 @@ const locationInput = document.querySelector("#event-location");
 const imageOptions = document.querySelector("#image-options");
 const imageSummary = document.querySelector("#image-summary");
 const imageLinkInput = document.querySelector("#event-image-link");
+const addImageLinkButton = document.querySelector("#add-image-link");
 const imageFileInput = document.querySelector("#event-image-file");
 const imageDropZone = document.querySelector("#image-drop-zone");
 const imagePreview = document.querySelector("#image-preview");
@@ -77,7 +78,7 @@ const status = document.querySelector("#status");
 
 let timeline = createEmptyTimeline();
 let draftFields = [];
-let draftImage = null;
+let draftImages = [];
 let lastTimeZone = getBrowserTimeZone();
 let editingEventId = null;
 let isEditingTitle = false;
@@ -123,6 +124,7 @@ async function init() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   syncDraftFieldValues();
+  syncDraftImageDetails();
 
   const previousEvent = editingEventId
     ? timeline.events.find((item) => item.id === editingEventId)
@@ -134,9 +136,11 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  const imageId = draftImage?.id || "";
-  if (draftImage && !timeline.media.some((item) => item.id === draftImage.id)) {
-    timeline.media = [...timeline.media, draftImage];
+  for (const image of draftImages) {
+    if (image.kind !== "embedded" || !image.media) continue;
+    if (!timeline.media.some((item) => item.id === image.media.id)) {
+      timeline.media = [...timeline.media, image.media];
+    }
   }
 
   const savedEvent = createEvent({
@@ -146,8 +150,7 @@ form.addEventListener("submit", async (event) => {
     time: timeInput.value || "00:00",
     tz: tzInput.value || lastTimeZone,
     location: locationInput.value,
-    imageId,
-    imageLink: imageLinkInput.value,
+    images: draftImages.map(toEventImage),
     fields: draftFields
   });
 
@@ -222,6 +225,12 @@ timeInput.addEventListener("input", renderOptionalSummaries);
 tzInput.addEventListener("change", renderOptionalSummaries);
 locationInput.addEventListener("input", renderOptionalSummaries);
 imageLinkInput.addEventListener("input", renderOptionalSummaries);
+imageLinkInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addDraftImageLink();
+});
+addImageLinkButton.addEventListener("click", () => addDraftImageLink());
 
 addPresetFieldButton.addEventListener("click", () => {
   const field = makeFieldFromPreset(fieldPresetInput.value);
@@ -262,9 +271,9 @@ cancelEditButton.addEventListener("click", () => {
 });
 
 imageFileInput.addEventListener("change", async () => {
-  const file = imageFileInput.files?.[0];
-  if (!file) return;
-  await setDraftImageFromFile(file);
+  const files = [...(imageFileInput.files || [])].filter((file) => file.type.startsWith("image/"));
+  if (files.length === 0) return;
+  await addDraftImagesFromFiles(files);
   imageFileInput.value = "";
 });
 
@@ -280,18 +289,52 @@ imageDropZone.addEventListener("dragleave", () => {
 imageDropZone.addEventListener("drop", async (event) => {
   event.preventDefault();
   imageDropZone.classList.remove("dragging");
-  const file = [...event.dataTransfer.files].find((item) => item.type.startsWith("image/"));
-  if (!file) {
+  const files = [...event.dataTransfer.files].filter((item) => item.type.startsWith("image/"));
+  if (files.length === 0) {
     setStatus("Drop did not include an image file.");
     return;
   }
-  await setDraftImageFromFile(file);
+  await addDraftImagesFromFiles(files);
+});
+
+imagePreview.addEventListener("input", (event) => {
+  const captionInput = event.target.closest("[data-image-caption]");
+  if (!captionInput) return;
+  const image = draftImages.find((item) => item.id === captionInput.dataset.imageCaption);
+  if (image) image.caption = captionInput.value;
+});
+
+imagePreview.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-remove-image]");
+  if (removeButton) {
+    draftImages = draftImages.filter((image) => image.id !== removeButton.dataset.removeImage);
+    renderImagePreview();
+    setStatus("Image removed from gallery.");
+    return;
+  }
+
+  const moveButton = event.target.closest("[data-move-image]");
+  if (!moveButton) return;
+  const index = draftImages.findIndex((image) => image.id === moveButton.dataset.moveImage);
+  const direction = moveButton.dataset.direction === "up" ? -1 : 1;
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= draftImages.length) return;
+  const nextImages = [...draftImages];
+  [nextImages[index], nextImages[nextIndex]] = [nextImages[nextIndex], nextImages[index]];
+  draftImages = nextImages;
+  renderImagePreview();
+  setStatus("Image order updated.");
 });
 
 document.addEventListener("paste", async (event) => {
   const file = getImageFileFromClipboard(event.clipboardData);
-  if (!file) return;
-  await setDraftImageFromFile(file);
+  if (file) {
+    await addDraftImagesFromFiles([file]);
+    return;
+  }
+
+  const text = event.clipboardData?.getData("text/plain") || "";
+  if (isSafeHttpUrl(text)) addDraftImageLink(text);
 });
 
 addDummyButton.addEventListener("click", async () => {
@@ -304,7 +347,14 @@ addDummyButton.addEventListener("click", async () => {
     tz: lastTimeZone,
     title: `Dummy ${getEventTypeLabel(type).toLowerCase()} event ${number}`,
     location: number % 2 === 0 ? "Sample City" : "",
-    imageLink: number % 3 === 0 ? "https://example.com/sample-image.jpg" : "",
+    images: number % 3 === 0
+      ? [{
+        id: crypto.randomUUID(),
+        kind: "link",
+        url: "https://example.com/sample-image.jpg",
+        caption: ""
+      }]
+      : [],
     fields: [
       {
         key: "summary",
@@ -434,10 +484,9 @@ function render() {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="event-summary">
-        ${renderEventImage(event)}
+        ${renderEventThumbnail(event)}
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
-        ${renderImageLink(event.imageLink)}
         ${renderFieldSummary(event.fields)}
       </div>
       <div class="event-actions">
@@ -455,15 +504,19 @@ function renderTimelineTitle() {
   if (!isEditingTitle) titleInput.value = title;
 }
 
-function renderEventImage(event) {
-  const image = resolveEventImage(timeline, event);
-  if (!canRenderImageMedia(image)) return "";
-  return `<img class="event-thumb" src="${escapeHtml(image.dataUrl)}" alt="">`;
-}
-
-function renderImageLink(imageLink) {
-  if (!imageLink) return "";
-  return `<a class="small" href="${escapeHtml(imageLink)}" target="_blank" rel="noreferrer">Image link</a>`;
+function renderEventThumbnail(event) {
+  const images = resolveEventImages(timeline, event);
+  const image = images.find((item) => item.kind === "link" || canRenderImageMedia(item.media));
+  if (!image) return "";
+  const src = image.kind === "embedded" ? image.media.dataUrl : image.url;
+  const extraCount = images.length - 1;
+  return `
+    <div class="event-thumb-wrap">
+      <img class="event-thumb" src="${escapeHtml(src)}" alt="${escapeHtml(image.caption || "")}">
+      ${renderImageSourceIcon(image.kind)}
+      ${extraCount > 0 ? `<span class="gallery-count">+${extraCount}</span>` : ""}
+    </div>
+  `;
 }
 
 function renderDraftFields() {
@@ -491,29 +544,72 @@ function renderDraftFields() {
 function renderImagePreview() {
   imagePreview.innerHTML = "";
 
-  if (!draftImage) {
-    imagePreview.innerHTML = `<div class="empty-state compact">No image attached to this draft event.</div>`;
+  if (draftImages.length === 0) {
+    imagePreview.innerHTML = `<div class="empty-state compact">No images in this event gallery.</div>`;
     renderOptionalSummaries();
     return;
   }
 
-  imagePreview.innerHTML = `
-    <div class="attached-image">
-      <img src="${escapeHtml(draftImage.dataUrl)}" alt="">
-      <div>
-        <strong>${escapeHtml(draftImage.originalName || "Attached image")}</strong>
-        <div class="small">${draftImage.width} x ${draftImage.height} JPEG</div>
-      </div>
-      <button type="button" id="remove-image">Remove</button>
-    </div>
-  `;
-
-  imagePreview.querySelector("#remove-image").addEventListener("click", () => {
-    draftImage = null;
-    renderImagePreview();
-    setStatus("Image removed from draft event.");
-  });
+  imagePreview.innerHTML = draftImages.map((image, index) => renderDraftImage(image, index)).join("");
   renderOptionalSummaries();
+}
+
+function renderDraftImage(image, index) {
+  const src = image.kind === "embedded" ? image.media?.dataUrl : image.url;
+
+  return `
+    <article class="gallery-editor-item">
+      <figure class="gallery-editor-media">
+        <img src="${escapeHtml(src || "")}" alt="${escapeHtml(image.caption || "")}">
+        ${renderImageSourceIcon(image.kind)}
+      </figure>
+      <div class="gallery-editor-body">
+        <label>
+          <span>Caption</span>
+          <input type="text" value="${escapeHtml(image.caption || "")}" data-image-caption="${escapeHtml(image.id)}" autocomplete="off">
+        </label>
+        <div class="gallery-editor-actions">
+          <button class="icon-button gallery-action-button" type="button" data-move-image="${escapeHtml(image.id)}" data-direction="up" aria-label="Move image up" title="Move up" ${index === 0 ? "disabled" : ""}>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m18 15-6-6-6 6"></path>
+            </svg>
+          </button>
+          <button class="icon-button gallery-action-button" type="button" data-move-image="${escapeHtml(image.id)}" data-direction="down" aria-label="Move image down" title="Move down" ${index === draftImages.length - 1 ? "disabled" : ""}>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </button>
+          <button class="icon-button gallery-action-button danger" type="button" data-remove-image="${escapeHtml(image.id)}" aria-label="Remove image" title="Remove">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="m19 6-1 14H6L5 6"></path>
+              <path d="M10 11v5"></path>
+              <path d="M14 11v5"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderImageSourceIcon(kind) {
+  const label = kind === "embedded" ? "Embedded image" : "Linked image";
+  const icon = kind === "embedded"
+    ? `
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+      <path d="M14 2v6h6"></path>
+    `
+    : `
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    `;
+  return `
+    <span class="source-icon" role="img" aria-label="${label}" title="${label}">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
+    </span>
+  `;
 }
 
 function renderOptionalSummaries() {
@@ -524,11 +620,11 @@ function renderOptionalSummaries() {
 
   datetimeSummary.textContent = time ? `${time} ${tzInput.value}` : "No time set";
   locationSummary.textContent = location || "No location";
-  imageSummary.textContent = draftImage
-    ? "Image attached"
+  imageSummary.textContent = draftImages.length > 0
+    ? `${draftImages.length} image${draftImages.length === 1 ? "" : "s"}`
     : imageLink
-      ? "Image link set"
-      : "No image";
+      ? "URL ready to add"
+      : "No images";
   fieldsSummary.textContent = draftFields.length === 0
     ? "No extra fields"
     : `${draftFields.length} field${draftFields.length === 1 ? "" : "s"}${populatedFieldCount > 0 ? `, ${populatedFieldCount} filled` : ""}`;
@@ -564,7 +660,7 @@ function resetEventForm() {
   locationInput.value = "";
   imageLinkInput.value = "";
   imageFileInput.value = "";
-  draftImage = null;
+  draftImages = [];
   draftFields = [];
   closeOptionalSections();
   renderImagePreview();
@@ -607,7 +703,7 @@ function closeOptionalSections() {
 function openPopulatedOptionalSections() {
   datetimeOptions.open = Boolean(timeInput.value);
   locationOptions.open = Boolean(locationInput.value.trim());
-  imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImage);
+  imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImages.length > 0);
   fieldsOptions.open = draftFields.length > 0;
 }
 
@@ -630,9 +726,9 @@ function startEditingEvent(eventId) {
   timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";
   tzInput.value = getEventTimeZone(event) || lastTimeZone;
   locationInput.value = event.location || "";
-  imageLinkInput.value = event.imageLink || "";
+  imageLinkInput.value = "";
   imageFileInput.value = "";
-  draftImage = resolveEventImage(timeline, event) || null;
+  draftImages = resolveEventImages(timeline, event).map(toDraftImage);
   draftFields = Array.isArray(event.fields)
     ? event.fields.map((field) => ({ ...field }))
     : [];
@@ -643,20 +739,89 @@ function startEditingEvent(eventId) {
   setStatus("Editing event. Save changes or cancel to return to adding events.");
 }
 
-async function setDraftImageFromFile(file) {
+async function addDraftImagesFromFiles(files) {
   try {
-    setStatus("Encoding image...");
-    const media = createImageMedia(await encodeImageFile(file));
-    if (!media) {
-      throw new Error("Encoded image did not pass schema checks.");
+    setStatus(`Encoding ${files.length} image${files.length === 1 ? "" : "s"}...`);
+    const nextImages = [];
+    for (const file of files) {
+      const media = createImageMedia(await encodeImageFile(file));
+      if (!media) {
+        throw new Error("Encoded image did not pass schema checks.");
+      }
+      nextImages.push({
+        id: crypto.randomUUID(),
+        kind: "embedded",
+        mediaId: media.id,
+        caption: "",
+        media
+      });
     }
-    draftImage = media;
+    draftImages = [...draftImages, ...nextImages];
     imageOptions.open = true;
     renderImagePreview();
-    setStatus("Image attached as resized JPEG with metadata removed.");
+    setStatus(`${nextImages.length} image${nextImages.length === 1 ? "" : "s"} added as resized JPEG${nextImages.length === 1 ? "" : "s"} with metadata removed.`);
   } catch (error) {
     setStatus(`Image failed: ${error.message}`);
   }
+}
+
+function addDraftImageLink(url = imageLinkInput.value) {
+  const safeUrl = String(url || "").trim();
+  if (!isSafeHttpUrl(safeUrl)) {
+    setStatus("Image URL must start with http:// or https://.");
+    return;
+  }
+
+  draftImages = [
+    ...draftImages,
+    {
+      id: crypto.randomUUID(),
+      kind: "link",
+      url: safeUrl,
+      caption: ""
+    }
+  ];
+  imageLinkInput.value = "";
+  imageOptions.open = true;
+  renderImagePreview();
+  setStatus("Linked image added to gallery.");
+}
+
+function toEventImage(image) {
+  if (image.kind === "embedded") {
+    return {
+      id: image.id,
+      kind: "embedded",
+      mediaId: image.mediaId,
+      caption: image.caption || ""
+    };
+  }
+
+  return {
+    id: image.id,
+    kind: "link",
+    url: image.url,
+    caption: image.caption || ""
+  };
+}
+
+function toDraftImage(image) {
+  if (image.kind === "embedded") {
+    return {
+      id: image.id,
+      kind: "embedded",
+      mediaId: image.mediaId,
+      caption: image.caption || "",
+      media: image.media
+    };
+  }
+
+  return {
+    id: image.id,
+    kind: "link",
+    url: image.url,
+    caption: image.caption || ""
+  };
 }
 
 async function encodeImageFile(file) {
@@ -724,18 +889,28 @@ function syncDraftFieldValues() {
   }
 }
 
+function syncDraftImageDetails() {
+  for (const input of imagePreview.querySelectorAll("[data-image-caption]")) {
+    const image = draftImages.find((item) => item.id === input.dataset.imageCaption);
+    if (image) image.caption = input.value;
+  }
+}
+
 function getLastEventTimeZone(document) {
   const sortedEvents = sortEvents(document.events || []);
   return getEventTimeZone(sortedEvents.at(-1));
 }
 
 function removeUnusedMediaForEvent(deletedEvent) {
-  const imageId = deletedEvent?.imageId;
-  if (!imageId) return;
-  const stillUsed = timeline.events.some((event) => event.imageId === imageId);
-  if (!stillUsed) {
-    timeline.media = timeline.media.filter((item) => item.id !== imageId);
-  }
+  const deletedMediaIds = new Set((deletedEvent?.images || [])
+    .filter((image) => image.kind === "embedded")
+    .map((image) => image.mediaId));
+  if (deletedMediaIds.size === 0) return;
+  const usedMediaIds = new Set((timeline.events || [])
+    .flatMap((event) => event.images || [])
+    .filter((image) => image.kind === "embedded")
+    .map((image) => image.mediaId));
+  timeline.media = timeline.media.filter((item) => !deletedMediaIds.has(item.id) || usedMediaIds.has(item.id));
 }
 
 function setStatus(message) {
@@ -756,4 +931,13 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function isSafeHttpUrl(url) {
+  try {
+    const parsed = new URL(String(url || "").trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

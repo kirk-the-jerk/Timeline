@@ -1,5 +1,5 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 3;
+export const TIMELINE_VERSION = 4;
 
 export const EVENT_TYPES = [
   { value: "life", label: "Life" },
@@ -42,15 +42,14 @@ export function createEmptyTimeline() {
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, imageId, imageLink, fields }) {
+export function createEvent({ type, title, date, time, tz, location, images, fields }) {
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type),
     title: cleanText(title) || "Untitled event",
     timestamp: normalizeTimestamp({ date, time, tz }),
     location: cleanText(location),
-    imageId: cleanText(imageId),
-    imageLink: cleanText(imageLink),
+    images: normalizeEventImages(images),
     fields: normalizeFields(fields)
   };
 }
@@ -112,13 +111,20 @@ export function normalizeTimelineWithDiagnostics(input) {
     return normalizedEvent;
   });
 
+  const usedMediaIds = new Set();
+  for (const event of events) {
+    for (const image of event.images) {
+      if (image.kind === "embedded") usedMediaIds.add(image.mediaId);
+    }
+  }
+
   const normalized = {
     ...pickUnknown(migratedInput, TIMELINE_KEYS),
     format: TIMELINE_FORMAT,
     version: TIMELINE_VERSION,
     title: normalizeTimelineTitle(migratedInput.title, diagnostics),
     updatedAt: normalizeUpdatedAt(migratedInput.updatedAt, diagnostics),
-    media: [...mediaById.values()],
+    media: [...usedMediaIds].map((id) => mediaById.get(id)).filter(Boolean),
     events: sortEvents(events)
   };
 
@@ -187,9 +193,25 @@ export function getEventTimeZone(event) {
   return cleanText(event?.timestamp?.tz || event?.tz);
 }
 
-export function resolveEventImage(timeline, event) {
-  const media = Array.isArray(timeline?.media) ? timeline.media : [];
-  return media.find((item) => item.id === event?.imageId) || normalizeMedia(event?.image);
+export function resolveEventImages(timeline, event) {
+  const mediaById = new Map((Array.isArray(timeline?.media) ? timeline.media : [])
+    .map((item) => [item.id, item]));
+  return (Array.isArray(event?.images) ? event.images : [])
+    .map((image) => {
+      if (image?.kind === "embedded") {
+        const media = mediaById.get(image.mediaId);
+        if (!media) return null;
+        return {
+          ...image,
+          media
+        };
+      }
+      if (image?.kind === "link" && isSafeHttpUrl(image.url)) {
+        return image;
+      }
+      return null;
+    })
+    .filter(Boolean);
 }
 
 export function canRenderImageMedia(media) {
@@ -278,20 +300,6 @@ function normalizeEvent(event, mediaById, diagnostics, path) {
       time: event.time,
       tz: event.tz
     }, diagnostics, path);
-  let imageId = cleanText(event.imageId || event.mediaId);
-
-  if (event.image) {
-    const media = normalizeMedia(event.image, diagnostics, `${path}.image`);
-    if (media) {
-      mediaById.set(media.id, media);
-      imageId ||= media.id;
-    }
-  }
-
-  if (imageId && !mediaById.has(imageId)) {
-    addDiagnostic(diagnostics, "error", "missing-media-reference", `Event ${event.id || getEventTitle(event)} references missing media ${imageId}.`, `${path}.imageId`);
-  }
-
   const id = cleanText(event.id);
   if (!id) {
     addDiagnostic(diagnostics, "warning", "generated-event-id", "Event was missing an id; assigned a new id.", `${path}.id`);
@@ -304,10 +312,75 @@ function normalizeEvent(event, mediaById, diagnostics, path) {
     title: getEventTitle(event),
     timestamp,
     location: cleanText(event.location),
-    imageId,
-    imageLink: cleanText(event.imageLink),
+    images: normalizeEventImages(event.images, mediaById, diagnostics, `${path}.images`),
     fields: normalizeFields(event.fields, diagnostics, `${path}.fields`)
   };
+}
+
+function normalizeEventImages(images, mediaById = null, diagnostics = [], path = "$.images") {
+  if (images === undefined) return [];
+  if (!Array.isArray(images)) {
+    addDiagnostic(diagnostics, "error", "invalid-images-array", "Ignored event images because they were not an array.", path);
+    return [];
+  }
+
+  return images
+    .map((image, index) => normalizeEventImage(image, mediaById, diagnostics, `${path}[${index}]`))
+    .filter(Boolean);
+}
+
+function normalizeEventImage(image, mediaById, diagnostics, path) {
+  if (!image || typeof image !== "object") {
+    addDiagnostic(diagnostics, "error", "malformed-image-gallery-item-dropped", "Ignored malformed image gallery item.", path);
+    return null;
+  }
+
+  let kind = cleanText(image.kind).toLowerCase();
+  if (!kind) {
+    if (cleanText(image.mediaId)) kind = "embedded";
+    if (cleanText(image.url)) kind = "link";
+    if (kind) {
+      addDiagnostic(diagnostics, "warning", "inferred-image-gallery-kind", "Image gallery item was missing kind; inferred it from the available fields.", `${path}.kind`);
+    }
+  }
+
+  const id = cleanText(image.id) || crypto.randomUUID();
+  if (!cleanText(image.id)) {
+    addDiagnostic(diagnostics, "warning", "generated-image-gallery-id", "Image gallery item was missing an id; assigned a new id.", `${path}.id`);
+  }
+
+  if (kind === "embedded") {
+    const mediaId = cleanText(image.mediaId);
+    if (!mediaId || (mediaById && !mediaById.has(mediaId))) {
+      addDiagnostic(diagnostics, "error", "missing-gallery-media-reference", `Ignored gallery image because media ${mediaId || "(missing)"} was not found.`, `${path}.mediaId`);
+      return null;
+    }
+    return {
+      ...pickUnknown(image, IMAGE_ITEM_KEYS),
+      id,
+      kind,
+      mediaId,
+      caption: cleanText(image.caption)
+    };
+  }
+
+  if (kind === "link") {
+    const url = cleanText(image.url);
+    if (!isSafeHttpUrl(url)) {
+      addDiagnostic(diagnostics, "error", "invalid-gallery-image-url", "Ignored linked gallery image because the URL was not http or https.", `${path}.url`);
+      return null;
+    }
+    return {
+      ...pickUnknown(image, IMAGE_ITEM_KEYS),
+      id,
+      kind,
+      url,
+      caption: cleanText(image.caption)
+    };
+  }
+
+  addDiagnostic(diagnostics, "error", "unknown-gallery-image-kind", `Ignored gallery image with unsupported kind ${kind || "(missing)"}.`, `${path}.kind`);
+  return null;
 }
 
 function normalizeMedia(image, diagnostics = [], path = "$.media[]") {
@@ -449,6 +522,9 @@ function migrateTimelineInput(input, diagnostics) {
   if (version < 3) {
     migrated = migrateV2ToV3(migrated, diagnostics);
   }
+  if (version < 4) {
+    migrated = migrateV3ToV4(migrated, diagnostics);
+  }
   if (version > TIMELINE_VERSION) {
     addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
   }
@@ -486,37 +562,26 @@ function migrateV1ToV2(input, diagnostics) {
 }
 
 function migrateV2ToV3(input, diagnostics) {
-  const media = Array.isArray(input.media) ? [...input.media] : [];
-  const events = Array.isArray(input.events)
-    ? input.events.map((event, index) => {
-      if (!event || typeof event !== "object" || !event.image || typeof event.image !== "object") {
-        return event;
-      }
-
-      const image = { ...event.image };
-      const imageId = cleanText(event.imageId || event.mediaId || image.id) || crypto.randomUUID();
-      if (!cleanText(image.id)) {
-        image.id = imageId;
-        addDiagnostic(diagnostics, "warning", "generated-media-id", "Embedded image was missing an id; assigned a new id.", `$.events[${index}].image.id`);
-      }
-      media.push(image);
-
-      const migratedEvent = {
-        ...event,
-        imageId
-      };
-      delete migratedEvent.image;
-      addDiagnostic(diagnostics, "warning", "migrated-v2-image-media", "Migrated embedded event image into top-level media.", `$.events[${index}].image`);
-      return migratedEvent;
-    })
-    : input.events;
-
   addDiagnostic(diagnostics, "warning", "migrated-v2-schema", "Applied version 2 to version 3 timeline migration.", "$.version");
   return {
     ...input,
-    version: 3,
-    media,
-    events
+    version: 3
+  };
+}
+
+function migrateV3ToV4(input, diagnostics) {
+  if (Array.isArray(input.events)) {
+    const hasLegacyImages = input.events.some((event) => event && typeof event === "object"
+      && (event.image !== undefined || event.imageId !== undefined || event.mediaId !== undefined || event.imageLink !== undefined));
+    if (hasLegacyImages) {
+      addDiagnostic(diagnostics, "warning", "ignored-legacy-event-images", "Ignored legacy event image fields while loading the gallery-based schema.", "$.events");
+    }
+  }
+
+  addDiagnostic(diagnostics, "warning", "migrated-v3-schema", "Applied version 3 to version 4 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 4
   };
 }
 
@@ -641,6 +706,15 @@ function isComplexValue(value) {
   return value !== null && typeof value === "object";
 }
 
+function isSafeHttpUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function pickUnknown(source, knownKeys) {
   if (!source || typeof source !== "object") return {};
   return Object.fromEntries(
@@ -671,7 +745,16 @@ const EVENT_KEYS = new Set([
   "imageId",
   "mediaId",
   "imageLink",
+  "images",
   "fields"
+]);
+
+const IMAGE_ITEM_KEYS = new Set([
+  "id",
+  "kind",
+  "mediaId",
+  "url",
+  "caption"
 ]);
 
 const MEDIA_KEYS = new Set([
