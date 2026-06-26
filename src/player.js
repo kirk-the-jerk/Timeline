@@ -1,4 +1,4 @@
-import { formatDisplayTimestamp, getEventTitle, getEventTypeLabel, readTimelineFile, sortEvents } from "./timeline.js";
+import { canRenderImageMedia, formatDisplayTimestamp, getEventTitle, getEventTypeLabel, getTimelineSchemaWarnings, readTimelineFile, resolveEventImage, sortEvents } from "./timeline.js";
 
 const fileInput = document.querySelector("#timeline-file");
 const dropZone = document.querySelector("#drop-zone");
@@ -35,7 +35,11 @@ async function loadFile(file) {
   try {
     const timelineDocument = await readTimelineFile(file);
     renderTimeline(timelineDocument);
-    status.textContent = `Loaded ${file.name}.`;
+    const warnings = getTimelineSchemaWarnings(timelineDocument);
+    if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
+    status.textContent = warnings.length > 0
+      ? `Loaded ${file.name} with ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
+      : `Loaded ${file.name}.`;
   } catch (error) {
     status.textContent = `Could not load timeline: ${error.message}`;
   }
@@ -58,7 +62,7 @@ function renderTimeline(timelineDocument) {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="timeline-card">
-        ${renderEventImage(event)}
+        ${renderEventImage(timelineDocument, event)}
         <h2>${escapeHtml(getEventTitle(event))}</h2>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
         ${renderImageLink(event.imageLink)}
@@ -69,9 +73,10 @@ function renderTimeline(timelineDocument) {
   }
 }
 
-function renderEventImage(event) {
-  if (!event.image?.dataUrl) return "";
-  return `<img class="timeline-image" src="${escapeHtml(event.image.dataUrl)}" alt="">`;
+function renderEventImage(timelineDocument, event) {
+  const image = resolveEventImage(timelineDocument, event);
+  if (!canRenderImageMedia(image)) return "";
+  return `<img class="timeline-image" src="${escapeHtml(image.dataUrl)}" alt="">`;
 }
 
 function renderImageLink(imageLink) {

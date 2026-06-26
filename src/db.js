@@ -1,35 +1,80 @@
 import { createEmptyTimeline, normalizeTimeline } from "./timeline.js";
 
 const DB_NAME = "timeline-poc";
-const DB_VERSION = 1;
-const STORE_NAME = "documents";
+const DB_VERSION = 2;
+const DOCUMENT_STORE = "documents";
+const MEDIA_STORE = "media";
 const ACTIVE_ID = "active";
 
 export async function loadActiveTimeline() {
   const db = await openDatabase();
-  const existing = await requestToPromise(db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(ACTIVE_ID));
+  const transaction = db.transaction([DOCUMENT_STORE, MEDIA_STORE], "readonly");
+  const existing = await requestToPromise(transaction.objectStore(DOCUMENT_STORE).get(ACTIVE_ID));
+  const media = await requestToPromise(transaction.objectStore(MEDIA_STORE).getAll());
   db.close();
-  return existing ? normalizeTimeline(existing.timeline) : createEmptyTimeline();
+  if (!existing) return createEmptyTimeline();
+  const storedMedia = media
+    .filter((item) => item.timelineId === ACTIVE_ID)
+    .map(removeStoreMetadata);
+  return normalizeTimeline({
+    ...existing.timeline,
+    media: [
+      ...(Array.isArray(existing.timeline.media) ? existing.timeline.media : []),
+      ...storedMedia
+    ]
+  });
 }
 
 export async function saveActiveTimeline(timeline) {
   const db = await openDatabase();
+  const safeTimeline = normalizeTimeline({
+    ...timeline,
+    updatedAt: new Date().toISOString()
+  });
   const document = {
     id: ACTIVE_ID,
-    timeline: normalizeTimeline({
-      ...timeline,
-      updatedAt: new Date().toISOString()
-    }),
+    timeline: {
+      ...safeTimeline,
+      media: []
+    },
     savedAt: new Date().toISOString()
   };
-  await requestToPromise(db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(document));
+
+  const transaction = db.transaction([DOCUMENT_STORE, MEDIA_STORE], "readwrite");
+  const documentStore = transaction.objectStore(DOCUMENT_STORE);
+  const mediaStore = transaction.objectStore(MEDIA_STORE);
+  await requestToPromise(documentStore.put(document));
+
+  const existingMedia = await requestToPromise(mediaStore.getAll());
+  const keepIds = new Set(safeTimeline.media.map((item) => item.id));
+  for (const item of existingMedia) {
+    if (item.timelineId === ACTIVE_ID && !keepIds.has(item.id)) {
+      await requestToPromise(mediaStore.delete(item.id));
+    }
+  }
+
+  for (const item of safeTimeline.media) {
+    await requestToPromise(mediaStore.put({
+      ...item,
+      timelineId: ACTIVE_ID
+    }));
+  }
+
   db.close();
-  return document.timeline;
+  return safeTimeline;
 }
 
 export async function clearActiveTimeline() {
   const db = await openDatabase();
-  await requestToPromise(db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(ACTIVE_ID));
+  const transaction = db.transaction([DOCUMENT_STORE, MEDIA_STORE], "readwrite");
+  await requestToPromise(transaction.objectStore(DOCUMENT_STORE).delete(ACTIVE_ID));
+  const mediaStore = transaction.objectStore(MEDIA_STORE);
+  const existingMedia = await requestToPromise(mediaStore.getAll());
+  for (const item of existingMedia) {
+    if (item.timelineId === ACTIVE_ID) {
+      await requestToPromise(mediaStore.delete(item.id));
+    }
+  }
   db.close();
 }
 
@@ -39,14 +84,22 @@ function openDatabase() {
 
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(DOCUMENT_STORE)) {
+        db.createObjectStore(DOCUMENT_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(MEDIA_STORE)) {
+        db.createObjectStore(MEDIA_STORE, { keyPath: "id" });
       }
     };
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+function removeStoreMetadata(item) {
+  const { timelineId, ...media } = item;
+  return media;
 }
 
 function requestToPromise(request) {

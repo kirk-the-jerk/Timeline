@@ -1,9 +1,11 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
 import {
+  canRenderImageMedia,
   createCustomField,
   createEmptyTimeline,
   createEvent,
+  createImageMedia,
   downloadTimeline,
   EVENT_TYPES,
   FIELD_PRESETS,
@@ -13,9 +15,11 @@ import {
   getEventTimeZone,
   getEventTitle,
   getEventTypeLabel,
+  getTimelineSchemaWarnings,
   makeFieldFromPreset,
   normalizeTimeline,
   readTimelineFile,
+  resolveEventImage,
   sortEvents
 } from "./timeline.js";
 
@@ -71,6 +75,11 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   syncDraftFieldValues();
 
+  const imageId = draftImage?.id || "";
+  if (draftImage && !timeline.media.some((item) => item.id === draftImage.id)) {
+    timeline.media = [...timeline.media, draftImage];
+  }
+
   const newEvent = createEvent({
     type: typeInput.value,
     title: eventTitleInput.value,
@@ -78,7 +87,7 @@ form.addEventListener("submit", async (event) => {
     time: timeInput.value || "00:00",
     tz: tzInput.value || lastTimeZone,
     location: locationInput.value,
-    image: draftImage,
+    imageId,
     imageLink: imageLinkInput.value,
     fields: draftFields
   });
@@ -202,7 +211,11 @@ loadJsonInput.addEventListener("change", async () => {
     timeline = await readTimelineFile(file);
     lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
     resetEventForm();
-    await persist(`Loaded ${file.name}.`);
+    const warnings = getTimelineSchemaWarnings(timeline);
+    if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
+    await persist(warnings.length > 0
+      ? `Loaded ${file.name}. ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
+      : `Loaded ${file.name}.`);
   } catch (error) {
     setStatus(`Import failed: ${error.message}`);
   } finally {
@@ -221,7 +234,9 @@ resetButton.addEventListener("click", async () => {
 eventList.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-delete-id]");
   if (!button) return;
+  const deletedEvent = timeline.events.find((item) => item.id === button.dataset.deleteId);
   timeline.events = timeline.events.filter((item) => item.id !== button.dataset.deleteId);
+  removeUnusedMediaForEvent(deletedEvent);
   lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
   await persist("Event deleted.");
 });
@@ -279,8 +294,9 @@ function render() {
 }
 
 function renderEventImage(event) {
-  if (!event.image?.dataUrl) return "";
-  return `<img class="event-thumb" src="${escapeHtml(event.image.dataUrl)}" alt="">`;
+  const image = resolveEventImage(timeline, event);
+  if (!canRenderImageMedia(image)) return "";
+  return `<img class="event-thumb" src="${escapeHtml(image.dataUrl)}" alt="">`;
 }
 
 function renderImageLink(imageLink) {
@@ -368,7 +384,11 @@ function resetEventForm() {
 async function setDraftImageFromFile(file) {
   try {
     setStatus("Encoding image...");
-    draftImage = await encodeImageFile(file);
+    const media = createImageMedia(await encodeImageFile(file));
+    if (!media) {
+      throw new Error("Encoded image did not pass schema checks.");
+    }
+    draftImage = media;
     renderImagePreview();
     setStatus("Image attached as resized JPEG with metadata removed.");
   } catch (error) {
@@ -444,6 +464,15 @@ function syncDraftFieldValues() {
 function getLastEventTimeZone(document) {
   const sortedEvents = sortEvents(document.events || []);
   return getEventTimeZone(sortedEvents.at(-1));
+}
+
+function removeUnusedMediaForEvent(deletedEvent) {
+  const imageId = deletedEvent?.imageId;
+  if (!imageId) return;
+  const stillUsed = timeline.events.some((event) => event.imageId === imageId);
+  if (!stillUsed) {
+    timeline.media = timeline.media.filter((item) => item.id !== imageId);
+  }
 }
 
 function setStatus(message) {

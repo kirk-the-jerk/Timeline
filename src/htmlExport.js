@@ -209,6 +209,7 @@ function standaloneRuntime() {
   const summary = document.getElementById("timeline-summary");
   const timeline = document.getElementById("timeline");
   const events = sortEvents(timelineData.events || []);
+  const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
 
   title.textContent = timelineData.title || "Untitled timeline";
   summary.textContent = events.length + " event" + (events.length === 1 ? "" : "s");
@@ -229,10 +230,11 @@ function standaloneRuntime() {
     const card = document.createElement("div");
     card.className = "timeline-card";
 
-    if (event.image && event.image.dataUrl) {
+    const eventImage = resolveEventImage(event);
+    if (canRenderImageMedia(eventImage)) {
       const image = document.createElement("img");
       image.className = "timeline-image";
-      image.src = event.image.dataUrl;
+      image.src = eventImage.dataUrl;
       image.alt = "";
       card.append(image);
     }
@@ -295,6 +297,18 @@ function standaloneRuntime() {
     link.rel = "noreferrer";
     link.textContent = "Image link";
     return link;
+  }
+
+  function resolveEventImage(event) {
+    if (event.imageId && mediaById.has(event.imageId)) return mediaById.get(event.imageId);
+    return event.image || null;
+  }
+
+  function canRenderImageMedia(media) {
+    return media
+      && media.kind === "image"
+      && media.mimeType === "image/jpeg"
+      && String(media.dataUrl || "").startsWith("data:image/jpeg;base64,");
   }
 
   function makeFieldSummary(fields) {

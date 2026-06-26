@@ -7,7 +7,7 @@ This prototype is intentionally dependency-free:
 - `index.html` is the product page.
 - `editor.html` creates, imports, exports, and locally saves a simple timeline.
 - `player.html` opens a timeline JSON file and displays its events.
-- `src/db.js` stores the active editor draft in IndexedDB.
+- `src/db.js` stores the active editor draft in IndexedDB, with timeline metadata and media in separate object stores.
 - `src/timeline.js` defines the shared timeline JSON shape.
 
 ## Run Locally
@@ -26,6 +26,16 @@ http://127.0.0.1:8000/
 
 The editor uses browser IndexedDB, so it is best to run through a local server instead of opening the files directly.
 
+## Check JavaScript
+
+Run:
+
+```sh
+python scripts/check_js.py
+```
+
+The checker uses `node --check` for the browser JavaScript files. It first looks for `node` on PATH, then falls back to the standard Windows Node install at `/mnt/c/Program Files/nodejs/node.exe` when running from WSL.
+
 ## Basic Test Flow
 
 1. Open `http://127.0.0.1:8000/editor.html`.
@@ -37,14 +47,37 @@ The editor uses browser IndexedDB, so it is best to run through a local server i
 
 The exported `.timeline.html` file can be opened directly in a browser. It contains its own CSS, player script, timeline JSON, and any embedded low-resolution JPEG images.
 
+## Schema Compatibility
+
+Current exports use schema version `3`.
+
+- Version 1-style events with `name` and `date` are migrated on import.
+- Version 2-style events with embedded `image` objects are migrated into top-level `media`.
+- Version 3 stores media separately in `media[]`; events reference images with `imageId`.
+- Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema warnings are shown in the UI status plus the browser console.
+
+In IndexedDB, the active draft stores the timeline document and media records separately. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
+
 ## JSON Shape
 
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 2,
+  "version": 3,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
+  "media": [
+    {
+      "id": "image-uuid",
+      "kind": "image",
+      "mimeType": "image/jpeg",
+      "dataUrl": "data:image/jpeg;base64,...",
+      "width": 960,
+      "height": 640,
+      "originalName": "photo.jpg",
+      "encodedAt": "2026-06-25T00:00:00.000Z"
+    }
+  ],
   "events": [
     {
       "id": "uuid",
@@ -56,15 +89,7 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",
-      "image": {
-        "id": "uuid",
-        "mimeType": "image/jpeg",
-        "dataUrl": "data:image/jpeg;base64,...",
-        "width": 960,
-        "height": 640,
-        "originalName": "photo.jpg",
-        "encodedAt": "2026-06-25T00:00:00.000Z"
-      },
+      "imageId": "image-uuid",
       "imageLink": "https://example.com/photo.jpg",
       "fields": [
         {

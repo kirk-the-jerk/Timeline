@@ -1,5 +1,5 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 2;
+export const TIMELINE_VERSION = 3;
 
 export const EVENT_TYPES = [
   { value: "life", label: "Life" },
@@ -37,21 +37,26 @@ export function createEmptyTimeline() {
     version: TIMELINE_VERSION,
     title: "Untitled timeline",
     updatedAt: new Date().toISOString(),
+    media: [],
     events: []
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, image, imageLink, fields }) {
+export function createEvent({ type, title, date, time, tz, location, imageId, imageLink, fields }) {
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type),
     title: cleanText(title) || "Untitled event",
     timestamp: normalizeTimestamp({ date, time, tz }),
     location: cleanText(location),
-    image: normalizeImage(image),
+    imageId: cleanText(imageId),
     imageLink: cleanText(imageLink),
     fields: normalizeFields(fields)
   };
+}
+
+export function createImageMedia(image) {
+  return normalizeMedia(image);
 }
 
 export function sortEvents(events) {
@@ -77,13 +82,31 @@ export function normalizeTimeline(input) {
     throw new Error("The timeline is missing an events array.");
   }
 
-  return {
+  const warnings = getInputWarnings(input);
+  const mediaById = new Map();
+
+  if (Array.isArray(input.media)) {
+    for (const item of input.media) {
+      const media = normalizeMedia(item, warnings);
+      if (media) mediaById.set(media.id, media);
+    }
+  } else if (input.media !== undefined) {
+    warnings.push("Ignored media because it was not an array.");
+  }
+
+  const events = input.events.map((event) => normalizeEvent(event, mediaById, warnings));
+  const normalized = {
+    ...pickUnknown(input, TIMELINE_KEYS),
     format: TIMELINE_FORMAT,
     version: TIMELINE_VERSION,
     title: String(input.title || "Imported timeline"),
     updatedAt: String(input.updatedAt || new Date().toISOString()),
-    events: sortEvents(input.events.map(normalizeEvent))
+    media: [...mediaById.values()],
+    events: sortEvents(events)
   };
+
+  attachSchemaWarnings(normalized, warnings);
+  return normalized;
 }
 
 export async function readTimelineFile(file) {
@@ -147,6 +170,21 @@ export function getEventTimeZone(event) {
   return cleanText(event?.timestamp?.tz || event?.tz);
 }
 
+export function resolveEventImage(timeline, event) {
+  const media = Array.isArray(timeline?.media) ? timeline.media : [];
+  return media.find((item) => item.id === event?.imageId) || normalizeMedia(event?.image);
+}
+
+export function canRenderImageMedia(media) {
+  return media?.kind === "image"
+    && media?.mimeType === "image/jpeg"
+    && cleanText(media.dataUrl).startsWith("data:image/jpeg;base64,");
+}
+
+export function getTimelineSchemaWarnings(timeline) {
+  return Array.isArray(timeline?.schemaWarnings) ? timeline.schemaWarnings : [];
+}
+
 export function getBrowserTimeZone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -192,7 +230,12 @@ export function createCustomField(label) {
   });
 }
 
-function normalizeEvent(event) {
+function normalizeEvent(event, mediaById, warnings) {
+  if (!event || typeof event !== "object") {
+    warnings.push("Replaced malformed event with an untitled placeholder event.");
+    event = {};
+  }
+
   const timestamp = event.timestamp
     ? normalizeTimestamp(event.timestamp)
     : normalizeTimestamp({
@@ -200,29 +243,56 @@ function normalizeEvent(event) {
       time: event.time,
       tz: event.tz
     });
+  let imageId = cleanText(event.imageId || event.mediaId);
+
+  if (event.image) {
+    const media = normalizeMedia(event.image, warnings);
+    if (media) {
+      mediaById.set(media.id, media);
+      imageId ||= media.id;
+    }
+  }
+
+  if (imageId && !mediaById.has(imageId)) {
+    warnings.push(`Event ${event.id || getEventTitle(event)} references missing media ${imageId}.`);
+  }
 
   return {
+    ...pickUnknown(event, EVENT_KEYS),
     id: String(event.id || crypto.randomUUID()),
     type: normalizeEventType(event.type),
     title: getEventTitle(event),
     timestamp,
     location: cleanText(event.location),
-    image: normalizeImage(event.image),
+    imageId,
     imageLink: cleanText(event.imageLink),
     fields: normalizeFields(event.fields)
   };
 }
 
-function normalizeImage(image) {
+function normalizeMedia(image, warnings = []) {
   if (!image || typeof image !== "object") return null;
 
   const dataUrl = cleanText(image.dataUrl);
-  if (!dataUrl.startsWith("data:image/jpeg;base64,")) return null;
+  const kind = cleanText(image.kind) || "image";
+  const mimeType = cleanText(image.mimeType) || (dataUrl.startsWith("data:image/jpeg;base64,") ? "image/jpeg" : "");
+
+  if (!cleanText(image.id) && !dataUrl && !cleanText(image.path)) {
+    warnings.push("Ignored media item without an id, dataUrl, or path.");
+    return null;
+  }
+
+  if (kind === "image" && dataUrl && !dataUrl.startsWith("data:image/jpeg;base64,")) {
+    warnings.push("Preserved image media that this app cannot render because it was not a JPEG data URL.");
+  }
 
   return {
+    ...pickUnknown(image, MEDIA_KEYS),
     id: String(image.id || crypto.randomUUID()),
-    mimeType: "image/jpeg",
+    kind,
+    mimeType,
     dataUrl,
+    path: cleanText(image.path),
     width: Number(image.width || 0),
     height: Number(image.height || 0),
     originalName: cleanText(image.originalName),
@@ -242,13 +312,19 @@ function normalizeFields(fields) {
   if (!Array.isArray(fields)) return [];
 
   return fields
-    .map((field) => createField(field))
+    .map((field) => {
+      if (!field || typeof field !== "object") return null;
+      return createField(field);
+    })
+    .filter(Boolean)
     .filter((field) => field.label || field.value);
 }
 
-function createField({ id, key, label, type, value }) {
+function createField(field) {
+  const { id, key, label, type, value } = field;
   const safeLabel = cleanText(label || key);
   return {
+    ...pickUnknown(field, FIELD_KEYS),
     id: String(id || crypto.randomUUID()),
     key: cleanText(key) || slugify(safeLabel),
     label: safeLabel,
@@ -278,6 +354,77 @@ function today() {
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
+
+function getInputWarnings(input) {
+  const warnings = [];
+  if (!input.format) warnings.push("Timeline was missing a format; treated as a legacy local timeline.");
+  if (!input.version) warnings.push("Timeline was missing a schema version; treated as legacy data.");
+  if (Number(input.version || 1) > TIMELINE_VERSION) {
+    warnings.push(`Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`);
+  }
+  return warnings;
+}
+
+function attachSchemaWarnings(timeline, warnings) {
+  Object.defineProperty(timeline, "schemaWarnings", {
+    value: warnings,
+    enumerable: false,
+    configurable: true
+  });
+}
+
+function pickUnknown(source, knownKeys) {
+  if (!source || typeof source !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(source).filter(([key]) => !knownKeys.has(key))
+  );
+}
+
+const TIMELINE_KEYS = new Set([
+  "format",
+  "version",
+  "title",
+  "updatedAt",
+  "events",
+  "media"
+]);
+
+const EVENT_KEYS = new Set([
+  "id",
+  "type",
+  "title",
+  "name",
+  "timestamp",
+  "date",
+  "time",
+  "tz",
+  "location",
+  "image",
+  "imageId",
+  "mediaId",
+  "imageLink",
+  "fields"
+]);
+
+const MEDIA_KEYS = new Set([
+  "id",
+  "kind",
+  "mimeType",
+  "dataUrl",
+  "path",
+  "width",
+  "height",
+  "originalName",
+  "encodedAt"
+]);
+
+const FIELD_KEYS = new Set([
+  "id",
+  "key",
+  "label",
+  "type",
+  "value"
+]);
 
 function slugify(value) {
   return String(value || "timeline")

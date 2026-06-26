@@ -20,6 +20,16 @@
                 "panel": "dedicated",
                 "clear": true
             }
+        },
+        {
+            "label": "Check JS Syntax",
+            "type": "shell",
+            "command": "python scripts/check_js.py",
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true
+            }
         }
     ]
 }
