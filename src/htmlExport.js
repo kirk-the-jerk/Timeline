@@ -283,51 +283,60 @@ function standaloneRuntime() {
   const events = sortEvents(timelineData.events || []);
   const eventTypes = normalizeEventTypes(timelineData.eventTypes);
   const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
+  const PLAYER_RENDERERS = {
+    simple: renderSimplePlayer,
+    timeline: renderPlaceholderPlayer,
+    slideshow: renderPlaceholderPlayer,
+    map: renderPlaceholderPlayer
+  };
 
   title.textContent = timelineData.title || "Untitled timeline";
   summary.textContent = playerData.label + " player / " + events.length + " event" + (events.length === 1 ? "" : "s");
+  renderPlayer();
 
-  if (playerData.value !== "simple") {
-    renderPlaceholderPlayer(events.length);
-    return;
+  function renderPlayer() {
+    const renderer = PLAYER_RENDERERS[playerData.value] || PLAYER_RENDERERS.simple;
+    renderer();
   }
 
-  if (events.length === 0) {
-    timeline.innerHTML = '<div class="empty-state">This timeline does not contain any events.</div>';
-    return;
+  function renderSimplePlayer() {
+    if (events.length === 0) {
+      timeline.innerHTML = '<div class="empty-state">This timeline does not contain any events.</div>';
+      return;
+    }
+
+    for (const event of events) {
+      const row = document.createElement("article");
+      row.className = "timeline-event";
+
+      const date = document.createElement("div");
+      date.className = "event-date";
+      date.textContent = formatDisplayTimestamp(event.timestamp);
+
+      const card = document.createElement("div");
+      card.className = "timeline-card";
+
+      const gallery = makeEventGallery(event);
+      if (gallery) card.append(gallery);
+
+      const heading = document.createElement("h2");
+      heading.textContent = event.title || "Untitled event";
+      card.append(heading);
+
+      const meta = document.createElement("div");
+      meta.className = "small";
+      meta.textContent = getEventTypeDisplay(event.type) + (event.location ? " / " + event.location : "");
+      card.append(meta);
+
+      const fieldSummary = makeFieldSummary(event.fields || []);
+      if (fieldSummary) card.append(fieldSummary);
+
+      row.append(date, card);
+      timeline.append(row);
+    }
   }
 
-  for (const event of events) {
-    const row = document.createElement("article");
-    row.className = "timeline-event";
-
-    const date = document.createElement("div");
-    date.className = "event-date";
-    date.textContent = formatDisplayTimestamp(event.timestamp);
-
-    const card = document.createElement("div");
-    card.className = "timeline-card";
-
-    const gallery = makeEventGallery(event);
-    if (gallery) card.append(gallery);
-
-    const heading = document.createElement("h2");
-    heading.textContent = event.title || "Untitled event";
-    card.append(heading);
-
-    const meta = document.createElement("div");
-    meta.className = "small";
-    meta.textContent = getEventTypeDisplay(event.type) + (event.location ? " / " + event.location : "");
-    card.append(meta);
-
-    const fieldSummary = makeFieldSummary(event.fields || []);
-    if (fieldSummary) card.append(fieldSummary);
-
-    row.append(date, card);
-    timeline.append(row);
-  }
-
-  function renderPlaceholderPlayer(eventCount) {
+  function renderPlaceholderPlayer() {
     timeline.innerHTML = "";
     const placeholder = document.createElement("div");
     placeholder.className = "empty-state placeholder-player";
@@ -339,7 +348,7 @@ function standaloneRuntime() {
     description.textContent = playerData.description || "Player placeholder.";
 
     const count = document.createElement("span");
-    count.textContent = eventCount + " event" + (eventCount === 1 ? "" : "s") + " loaded.";
+    count.textContent = events.length + " event" + (events.length === 1 ? "" : "s") + " loaded.";
 
     placeholder.append(title, description, count);
     timeline.append(placeholder);
