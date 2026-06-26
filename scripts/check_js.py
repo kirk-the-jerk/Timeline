@@ -13,6 +13,7 @@ JS_FILES = [
     "src/editor.js",
     "src/player.js",
     "src/htmlExport.js",
+    "scripts/check_schema.mjs",
 ]
 WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
 
@@ -23,14 +24,19 @@ def main():
         print("Node.js was not found. Install Node in WSL or Windows.", file=sys.stderr)
         return 1
 
-    print(f"Using Node: {node}")
+    print(f"Using Node: {node}", flush=True)
     failures = 0
     for relative_path in JS_FILES:
         path = ROOT / relative_path
         result = subprocess.run([str(node), "--check", node_readable_path(node, path)], cwd=ROOT)
         if result.returncode == 0:
-            print(f"OK {relative_path}")
+            print(f"OK {relative_path}", flush=True)
         else:
+            failures += 1
+
+    if failures == 0:
+        result = subprocess.run([str(node), node_readable_path(node, ROOT / "scripts/check_schema.mjs")], cwd=ROOT)
+        if result.returncode != 0:
             failures += 1
 
     return 1 if failures else 0

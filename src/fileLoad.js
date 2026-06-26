@@ -1,4 +1,4 @@
-import { getTimelineSchemaWarnings, normalizeTimeline } from "./timeline.js";
+import { normalizeTimelineWithDiagnostics } from "./timeline.js";
 
 export function createTimelineLoadController({
   dialog,
@@ -70,20 +70,29 @@ export function createTimelineLoadController({
 
       appendLoadLog(log, "Normalizing schema...");
       setLoadProgress(progressBar, 92);
-      const timeline = normalizeTimeline(parsedTimeline);
-      const warnings = getTimelineSchemaWarnings(timeline);
+      const { timeline, diagnostics } = normalizeTimelineWithDiagnostics(parsedTimeline);
 
-      for (const warning of warnings) {
-        appendLoadLog(log, `Warning: ${warning}`);
+      for (const diagnostic of diagnostics) {
+        appendLoadLog(log, formatDiagnostic(diagnostic));
       }
-      if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
+      logDiagnostics(diagnostics);
 
-      const customMessage = await onTimelineLoaded(timeline, { file, warnings });
+      const customMessage = await onTimelineLoaded(timeline, {
+        file,
+        diagnostics,
+        warnings: diagnostics.filter((diagnostic) => diagnostic.level === "warning")
+      });
       setLoadProgress(progressBar, 100);
       appendLoadLog(log, "Load complete.");
-      onStatus?.(customMessage || loadedMessage(file, warnings));
+      onStatus?.(customMessage || loadedMessage(file, diagnostics));
     } catch (error) {
       setLoadProgress(progressBar, 100);
+      if (Array.isArray(error.diagnostics)) {
+        for (const diagnostic of error.diagnostics) {
+          appendLoadLog(log, formatDiagnostic(diagnostic));
+        }
+        logDiagnostics(error.diagnostics);
+      }
       appendLoadLog(log, `Error: ${error.message}`);
       onStatus?.(`Import failed: ${error.message}`);
     }
@@ -115,6 +124,20 @@ function appendLoadLog(log, message) {
   line.textContent = message;
   log.append(line);
   log.scrollTop = log.scrollHeight;
+}
+
+function formatDiagnostic(diagnostic) {
+  const label = diagnostic.level === "error" ? "Error" : "Warning";
+  const path = diagnostic.path ? ` (${diagnostic.path})` : "";
+  return `${label}: ${diagnostic.message}${path}`;
+}
+
+function logDiagnostics(diagnostics) {
+  if (diagnostics.length === 0) return;
+  const errors = diagnostics.filter((diagnostic) => diagnostic.level === "error");
+  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "warning");
+  if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
+  if (errors.length > 0) console.error("Timeline schema errors", errors);
 }
 
 async function readFileText(file, onProgress) {
@@ -187,8 +210,14 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
 }
 
-function loadedMessage(file, warnings) {
-  return warnings.length > 0
-    ? `Loaded ${file.name} with ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
+function loadedMessage(file, diagnostics) {
+  const errors = diagnostics.filter((diagnostic) => diagnostic.level === "error").length;
+  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "warning").length;
+  const details = [
+    errors > 0 ? `${errors} schema error${errors === 1 ? "" : "s"}` : "",
+    warnings > 0 ? `${warnings} schema warning${warnings === 1 ? "" : "s"}` : ""
+  ].filter(Boolean);
+  return details.length > 0
+    ? `Loaded ${file.name} with ${details.join(" and ")}.`
     : `Loaded ${file.name}.`;
 }

@@ -93,14 +93,12 @@ createTimelineLoadController({
   dragClassTarget: headerActions,
   progressBar: loadProgressBar,
   log: loadLog,
-  onTimelineLoaded: async (timelineDocument, { file, warnings }) => {
+  onTimelineLoaded: async (timelineDocument, { file, diagnostics }) => {
     timeline = timelineDocument;
     lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
     setTitleEditing(false, { focus: false });
     resetEventForm();
-    await persist(warnings.length > 0
-      ? `Loaded ${file.name} with ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
-      : `Loaded ${file.name}.`);
+    await persist(loadedImportMessage(file, diagnostics));
   },
   onStatus: setStatus
 });
@@ -383,6 +381,18 @@ async function persist(message) {
   timeline = normalizeTimeline(await saveActiveTimeline(timeline));
   render();
   setStatus(message);
+}
+
+function loadedImportMessage(file, diagnostics) {
+  const errors = diagnostics.filter((diagnostic) => diagnostic.level === "error").length;
+  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "warning").length;
+  const details = [
+    errors > 0 ? `${errors} schema error${errors === 1 ? "" : "s"}` : "",
+    warnings > 0 ? `${warnings} schema warning${warnings === 1 ? "" : "s"}` : ""
+  ].filter(Boolean);
+  return details.length > 0
+    ? `Loaded ${file.name} with ${details.join(" and ")}.`
+    : `Loaded ${file.name}.`;
 }
 
 function populateEventTypes() {

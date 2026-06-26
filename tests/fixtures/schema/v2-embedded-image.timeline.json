@@ -1,0 +1,24 @@
+{
+  "format": "local-timeline-poc",
+  "version": 2,
+  "title": "Version 2 image timeline",
+  "updatedAt": "2026-06-25T00:00:00.000Z",
+  "events": [
+    {
+      "id": "event-with-image",
+      "type": "life",
+      "title": "Added a photo",
+      "timestamp": {
+        "date": "2021-03-04",
+        "time": "12:30",
+        "tz": "America/Vancouver"
+      },
+      "image": {
+        "kind": "image",
+        "mimeType": "image/jpeg",
+        "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD"
+      },
+      "fields": []
+    }
+  ]
+}

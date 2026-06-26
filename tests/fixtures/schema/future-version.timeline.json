@@ -1,0 +1,25 @@
+{
+  "format": "local-timeline-poc",
+  "version": 99,
+  "title": "Future timeline",
+  "updatedAt": "2026-06-25T00:00:00.000Z",
+  "futureTimelineField": {
+    "mode": "future"
+  },
+  "media": [],
+  "events": [
+    {
+      "id": "future-event",
+      "type": "job",
+      "title": "Future event",
+      "timestamp": {
+        "date": "2022-05-06",
+        "time": "08:15",
+        "tz": "UTC"
+      },
+      "location": "Remote",
+      "futureEventField": "preserve me",
+      "fields": []
+    }
+  ]
+}

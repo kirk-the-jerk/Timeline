@@ -1,0 +1,44 @@
+{
+  "format": "local-timeline-poc",
+  "version": 3,
+  "title": "Malformed but recoverable",
+  "updatedAt": "2026-06-25T00:00:00.000Z",
+  "media": [
+    {}
+  ],
+  "events": [
+    null,
+    {
+      "id": "duplicate",
+      "type": "travel",
+      "title": "References missing media",
+      "timestamp": {
+        "date": "2023-01-02",
+        "time": "09:00",
+        "tz": "UTC"
+      },
+      "imageId": "missing-image",
+      "fields": "not an array"
+    },
+    {
+      "id": "duplicate",
+      "type": "mystery",
+      "title": "Odd timestamp and fields",
+      "timestamp": {
+        "date": "summer 2024",
+        "time": "25:99",
+        "tz": "UTC"
+      },
+      "fields": [
+        null,
+        {},
+        {
+          "label": "Metadata",
+          "value": {
+            "source": "old app"
+          }
+        }
+      ]
+    }
+  ]
+}

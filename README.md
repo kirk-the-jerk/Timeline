@@ -26,7 +26,7 @@ http://127.0.0.1:8000/
 
 The editor uses browser IndexedDB, so it is best to run through a local server instead of opening the files directly.
 
-## Check JavaScript
+## Check JavaScript and Schema Fixtures
 
 Run:
 
@@ -34,7 +34,7 @@ Run:
 python scripts/check_js.py
 ```
 
-The checker uses `node --check` for the browser JavaScript files. It first looks for `node` on PATH, then falls back to the standard Windows Node install at `/mnt/c/Program Files/nodejs/node.exe` when running from WSL.
+The checker uses `node --check` for the browser JavaScript files, then runs schema compatibility fixture tests. It first looks for `node` on PATH, then falls back to the standard Windows Node install at `/mnt/c/Program Files/nodejs/node.exe` when running from WSL.
 
 ## Basic Test Flow
 
@@ -54,7 +54,8 @@ Current exports use schema version `3`.
 - Version 1-style events with `name` and `date` are migrated on import.
 - Version 2-style events with embedded `image` objects are migrated into top-level `media`.
 - Version 3 stores media separately in `media[]`; events reference images with `imageId`.
-- Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema warnings are shown in the UI status plus the browser console.
+- Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
+- Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
 In IndexedDB, the active draft stores the timeline document and media records separately. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
 

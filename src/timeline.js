@@ -70,43 +70,60 @@ export function sortEvents(events) {
 }
 
 export function normalizeTimeline(input) {
+  return normalizeTimelineWithDiagnostics(input).timeline;
+}
+
+export function normalizeTimelineWithDiagnostics(input) {
+  const diagnostics = [];
+
   if (!input || typeof input !== "object") {
-    throw new Error("The selected file does not contain a timeline object.");
+    throwSchemaError(diagnostics, "not-timeline-object", "The selected file does not contain a timeline object.", "$");
   }
-
   if (input.format && input.format !== TIMELINE_FORMAT) {
-    throw new Error(`Unsupported timeline format: ${input.format}`);
+    throwSchemaError(diagnostics, "unsupported-format", `Unsupported timeline format: ${input.format}`, "$.format");
   }
 
-  if (!Array.isArray(input.events)) {
-    throw new Error("The timeline is missing an events array.");
-  }
-
-  const warnings = getInputWarnings(input);
+  const migratedInput = migrateTimelineInput(input, diagnostics);
+  const inputEvents = getEventInputs(migratedInput, diagnostics);
   const mediaById = new Map();
 
-  if (Array.isArray(input.media)) {
-    for (const item of input.media) {
-      const media = normalizeMedia(item, warnings);
-      if (media) mediaById.set(media.id, media);
-    }
-  } else if (input.media !== undefined) {
-    warnings.push("Ignored media because it was not an array.");
+  if (Array.isArray(migratedInput.media)) {
+    migratedInput.media.forEach((item, index) => {
+      const media = normalizeMedia(item, diagnostics, `$.media[${index}]`);
+      if (!media) return;
+      if (mediaById.has(media.id)) {
+        addDiagnostic(diagnostics, "error", "duplicate-media-id", `Duplicate media id ${media.id}; the later media item was kept.`, `$.media[${index}].id`);
+      }
+      mediaById.set(media.id, media);
+    });
+  } else if (migratedInput.media !== undefined) {
+    addDiagnostic(diagnostics, "error", "invalid-media-array", "Ignored media because it was not an array.", "$.media");
   }
 
-  const events = input.events.map((event) => normalizeEvent(event, mediaById, warnings));
+  const usedEventIds = new Set();
+  const events = inputEvents.map((event, index) => {
+    const normalizedEvent = normalizeEvent(event, mediaById, diagnostics, `$.events[${index}]`);
+    if (usedEventIds.has(normalizedEvent.id)) {
+      const originalId = normalizedEvent.id;
+      normalizedEvent.id = crypto.randomUUID();
+      addDiagnostic(diagnostics, "error", "duplicate-event-id", `Duplicate event id ${originalId}; assigned a new id.`, `$.events[${index}].id`);
+    }
+    usedEventIds.add(normalizedEvent.id);
+    return normalizedEvent;
+  });
+
   const normalized = {
-    ...pickUnknown(input, TIMELINE_KEYS),
+    ...pickUnknown(migratedInput, TIMELINE_KEYS),
     format: TIMELINE_FORMAT,
     version: TIMELINE_VERSION,
-    title: String(input.title || "Imported timeline"),
-    updatedAt: String(input.updatedAt || new Date().toISOString()),
+    title: normalizeTimelineTitle(migratedInput.title, diagnostics),
+    updatedAt: normalizeUpdatedAt(migratedInput.updatedAt, diagnostics),
     media: [...mediaById.values()],
     events: sortEvents(events)
   };
 
-  attachSchemaWarnings(normalized, warnings);
-  return normalized;
+  attachSchemaDiagnostics(normalized, diagnostics);
+  return { timeline: normalized, diagnostics };
 }
 
 export async function readTimelineFile(file) {
@@ -182,7 +199,21 @@ export function canRenderImageMedia(media) {
 }
 
 export function getTimelineSchemaWarnings(timeline) {
-  return Array.isArray(timeline?.schemaWarnings) ? timeline.schemaWarnings : [];
+  return getTimelineSchemaDiagnostics(timeline)
+    .filter((diagnostic) => diagnostic.level === "warning")
+    .map((diagnostic) => diagnostic.message);
+}
+
+export function getTimelineSchemaDiagnostics(timeline) {
+  if (Array.isArray(timeline?.schemaDiagnostics)) return timeline.schemaDiagnostics;
+  if (Array.isArray(timeline?.schemaWarnings)) {
+    return timeline.schemaWarnings.map((message) => ({
+      level: "warning",
+      code: "legacy-warning",
+      message
+    }));
+  }
+  return [];
 }
 
 export function getBrowserTimeZone() {
@@ -230,23 +261,27 @@ export function createCustomField(label) {
   });
 }
 
-function normalizeEvent(event, mediaById, warnings) {
+function normalizeEvent(event, mediaById, diagnostics, path) {
   if (!event || typeof event !== "object") {
-    warnings.push("Replaced malformed event with an untitled placeholder event.");
+    addDiagnostic(diagnostics, "error", "malformed-event-replaced", "Replaced malformed event with an untitled placeholder event.", path);
     event = {};
   }
 
-  const timestamp = event.timestamp
-    ? normalizeTimestamp(event.timestamp)
+  if (event.timestamp && typeof event.timestamp !== "object") {
+    addDiagnostic(diagnostics, "error", "invalid-timestamp-dropped", "Ignored timestamp because it was not an object.", `${path}.timestamp`);
+  }
+
+  const timestamp = event.timestamp && typeof event.timestamp === "object"
+    ? normalizeTimestamp(event.timestamp, diagnostics, `${path}.timestamp`)
     : normalizeTimestamp({
       date: event.date,
       time: event.time,
       tz: event.tz
-    });
+    }, diagnostics, path);
   let imageId = cleanText(event.imageId || event.mediaId);
 
   if (event.image) {
-    const media = normalizeMedia(event.image, warnings);
+    const media = normalizeMedia(event.image, diagnostics, `${path}.image`);
     if (media) {
       mediaById.set(media.id, media);
       imageId ||= media.id;
@@ -254,41 +289,58 @@ function normalizeEvent(event, mediaById, warnings) {
   }
 
   if (imageId && !mediaById.has(imageId)) {
-    warnings.push(`Event ${event.id || getEventTitle(event)} references missing media ${imageId}.`);
+    addDiagnostic(diagnostics, "error", "missing-media-reference", `Event ${event.id || getEventTitle(event)} references missing media ${imageId}.`, `${path}.imageId`);
+  }
+
+  const id = cleanText(event.id);
+  if (!id) {
+    addDiagnostic(diagnostics, "warning", "generated-event-id", "Event was missing an id; assigned a new id.", `${path}.id`);
   }
 
   return {
     ...pickUnknown(event, EVENT_KEYS),
-    id: String(event.id || crypto.randomUUID()),
-    type: normalizeEventType(event.type),
+    id: id || crypto.randomUUID(),
+    type: normalizeEventType(event.type, diagnostics, `${path}.type`),
     title: getEventTitle(event),
     timestamp,
     location: cleanText(event.location),
     imageId,
     imageLink: cleanText(event.imageLink),
-    fields: normalizeFields(event.fields)
+    fields: normalizeFields(event.fields, diagnostics, `${path}.fields`)
   };
 }
 
-function normalizeMedia(image, warnings = []) {
-  if (!image || typeof image !== "object") return null;
+function normalizeMedia(image, diagnostics = [], path = "$.media[]") {
+  if (!image || typeof image !== "object") {
+    addDiagnostic(diagnostics, "error", "malformed-media-dropped", "Ignored malformed media item.", path);
+    return null;
+  }
 
   const dataUrl = cleanText(image.dataUrl);
   const kind = cleanText(image.kind) || "image";
   const mimeType = cleanText(image.mimeType) || (dataUrl.startsWith("data:image/jpeg;base64,") ? "image/jpeg" : "");
 
   if (!cleanText(image.id) && !dataUrl && !cleanText(image.path)) {
-    warnings.push("Ignored media item without an id, dataUrl, or path.");
+    addDiagnostic(diagnostics, "error", "invalid-media-dropped", "Ignored media item without an id, dataUrl, or path.", path);
     return null;
   }
 
+  if (!cleanText(image.id)) {
+    addDiagnostic(diagnostics, "warning", "generated-media-id", "Media item was missing an id; assigned a new id.", `${path}.id`);
+  }
+  if (!cleanText(image.kind)) {
+    addDiagnostic(diagnostics, "warning", "default-media-kind", "Media item was missing kind; defaulted to image.", `${path}.kind`);
+  }
+  if (dataUrl && !cleanText(image.mimeType)) {
+    addDiagnostic(diagnostics, "warning", "inferred-media-mime-type", "Media item was missing mimeType; inferred it from the data URL when possible.", `${path}.mimeType`);
+  }
   if (kind === "image" && dataUrl && !dataUrl.startsWith("data:image/jpeg;base64,")) {
-    warnings.push("Preserved image media that this app cannot render because it was not a JPEG data URL.");
+    addDiagnostic(diagnostics, "warning", "unrenderable-image-media", "Preserved image media that this app cannot render because it was not a JPEG data URL.", path);
   }
 
   return {
     ...pickUnknown(image, MEDIA_KEYS),
-    id: String(image.id || crypto.randomUUID()),
+    id: cleanText(image.id) || crypto.randomUUID(),
     kind,
     mimeType,
     dataUrl,
@@ -300,24 +352,65 @@ function normalizeMedia(image, warnings = []) {
   };
 }
 
-function normalizeTimestamp(timestamp) {
+function normalizeTimestamp(timestamp, diagnostics = [], path = "$.timestamp") {
+  const date = cleanText(timestamp.date);
+  const time = cleanText(timestamp.time);
+  const tz = cleanText(timestamp.tz);
+
+  if (!date) {
+    addDiagnostic(diagnostics, "warning", "default-date", "Timestamp was missing date; defaulted to today's date.", `${path}.date`);
+  } else if (!isIsoDate(date)) {
+    addDiagnostic(diagnostics, "warning", "non-iso-date", "Timestamp date is not YYYY-MM-DD; preserved the original value.", `${path}.date`);
+  }
+
+  if (!time) {
+    addDiagnostic(diagnostics, "warning", "default-time", "Timestamp was missing time; defaulted to 00:00.", `${path}.time`);
+  } else if (!isClockTime(time)) {
+    addDiagnostic(diagnostics, "warning", "non-standard-time", "Timestamp time is not HH:MM; preserved the original value.", `${path}.time`);
+  }
+
+  if (!tz) {
+    addDiagnostic(diagnostics, "warning", "default-time-zone", "Timestamp was missing time zone; defaulted to the browser time zone.", `${path}.tz`);
+  }
+
   return {
-    date: cleanText(timestamp.date) || today(),
-    time: cleanText(timestamp.time) || "00:00",
-    tz: cleanText(timestamp.tz) || getBrowserTimeZone()
+    date: date || today(),
+    time: time || "00:00",
+    tz: tz || getBrowserTimeZone()
   };
 }
 
-function normalizeFields(fields) {
-  if (!Array.isArray(fields)) return [];
+function normalizeFields(fields, diagnostics = [], path = "$.fields") {
+  if (fields === undefined) return [];
+  if (!Array.isArray(fields)) {
+    addDiagnostic(diagnostics, "error", "invalid-fields-dropped", "Ignored fields because they were not an array.", path);
+    return [];
+  }
 
   return fields
-    .map((field) => {
-      if (!field || typeof field !== "object") return null;
-      return createField(field);
+    .map((field, index) => {
+      if (!field || typeof field !== "object") {
+        addDiagnostic(diagnostics, "error", "malformed-field-dropped", "Ignored malformed field.", `${path}[${index}]`);
+        return null;
+      }
+
+      const normalized = createField(field);
+      if (!normalized.label && !normalized.value) {
+        addDiagnostic(diagnostics, "warning", "empty-field-dropped", "Ignored empty field with no label or value.", `${path}[${index}]`);
+        return null;
+      }
+      if (!cleanText(field.id)) {
+        addDiagnostic(diagnostics, "warning", "generated-field-id", "Field was missing an id; assigned a new id.", `${path}[${index}].id`);
+      }
+      if (!cleanText(field.type)) {
+        addDiagnostic(diagnostics, "warning", "default-field-type", "Field was missing type; defaulted to text.", `${path}[${index}].type`);
+      }
+      if (isComplexValue(field.value)) {
+        addDiagnostic(diagnostics, "warning", "stringified-field-value", "Field value was not plain text; converted it to text.", `${path}[${index}].value`);
+      }
+      return normalized;
     })
-    .filter(Boolean)
-    .filter((field) => field.label || field.value);
+    .filter(Boolean);
 }
 
 function createField(field) {
@@ -325,7 +418,7 @@ function createField(field) {
   const safeLabel = cleanText(label || key);
   return {
     ...pickUnknown(field, FIELD_KEYS),
-    id: String(id || crypto.randomUUID()),
+    id: cleanText(id) || crypto.randomUUID(),
     key: cleanText(key) || slugify(safeLabel),
     label: safeLabel,
     type: cleanText(type) || "text",
@@ -333,9 +426,154 @@ function createField(field) {
   };
 }
 
-function normalizeEventType(type) {
+function normalizeEventType(type, diagnostics = [], path = "$.type") {
   const safeType = cleanText(type).toLowerCase();
-  return EVENT_TYPES.some((eventType) => eventType.value === safeType) ? safeType : "life";
+  if (!safeType) {
+    addDiagnostic(diagnostics, "warning", "default-event-type", "Event was missing type; defaulted to life.", path);
+    return "life";
+  }
+  if (!EVENT_TYPES.some((eventType) => eventType.value === safeType)) {
+    addDiagnostic(diagnostics, "warning", "unknown-event-type", `Unknown event type ${safeType}; defaulted to life.`, path);
+    return "life";
+  }
+  return safeType;
+}
+
+function migrateTimelineInput(input, diagnostics) {
+  let migrated = { ...input };
+  const version = getInputSchemaVersion(input, diagnostics);
+
+  if (version < 2) {
+    migrated = migrateV1ToV2(migrated, diagnostics);
+  }
+  if (version < 3) {
+    migrated = migrateV2ToV3(migrated, diagnostics);
+  }
+  if (version > TIMELINE_VERSION) {
+    addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
+  }
+
+  return migrated;
+}
+
+function migrateV1ToV2(input, diagnostics) {
+  const events = Array.isArray(input.events)
+    ? input.events.map((event, index) => {
+      if (!event || typeof event !== "object") return event;
+      const migratedEvent = { ...event };
+      if (cleanText(event.name) && !cleanText(event.title)) {
+        migratedEvent.title = event.name;
+        addDiagnostic(diagnostics, "warning", "migrated-v1-name", "Migrated legacy event name to title.", `$.events[${index}].name`);
+      }
+      if (!event.timestamp && (event.date !== undefined || event.time !== undefined || event.tz !== undefined)) {
+        migratedEvent.timestamp = {
+          date: event.date,
+          time: event.time,
+          tz: event.tz
+        };
+        addDiagnostic(diagnostics, "warning", "migrated-v1-timestamp", "Migrated legacy event date/time fields to timestamp.", `$.events[${index}]`);
+      }
+      return migratedEvent;
+    })
+    : input.events;
+
+  addDiagnostic(diagnostics, "warning", "migrated-v1-schema", "Applied version 1 to version 2 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 2,
+    events
+  };
+}
+
+function migrateV2ToV3(input, diagnostics) {
+  const media = Array.isArray(input.media) ? [...input.media] : [];
+  const events = Array.isArray(input.events)
+    ? input.events.map((event, index) => {
+      if (!event || typeof event !== "object" || !event.image || typeof event.image !== "object") {
+        return event;
+      }
+
+      const image = { ...event.image };
+      const imageId = cleanText(event.imageId || event.mediaId || image.id) || crypto.randomUUID();
+      if (!cleanText(image.id)) {
+        image.id = imageId;
+        addDiagnostic(diagnostics, "warning", "generated-media-id", "Embedded image was missing an id; assigned a new id.", `$.events[${index}].image.id`);
+      }
+      media.push(image);
+
+      const migratedEvent = {
+        ...event,
+        imageId
+      };
+      delete migratedEvent.image;
+      addDiagnostic(diagnostics, "warning", "migrated-v2-image-media", "Migrated embedded event image into top-level media.", `$.events[${index}].image`);
+      return migratedEvent;
+    })
+    : input.events;
+
+  addDiagnostic(diagnostics, "warning", "migrated-v2-schema", "Applied version 2 to version 3 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 3,
+    media,
+    events
+  };
+}
+
+function getEventInputs(input, diagnostics) {
+  if (Array.isArray(input.events)) return input.events;
+  if (Array.isArray(input.timeline?.events)) {
+    addDiagnostic(diagnostics, "warning", "nested-events-array", "Loaded events from nested timeline.events.", "$.timeline.events");
+    return input.timeline.events;
+  }
+  if (Array.isArray(input.items)) {
+    addDiagnostic(diagnostics, "warning", "items-events-array", "Loaded events from legacy items array.", "$.items");
+    return input.items;
+  }
+  addDiagnostic(diagnostics, "error", "missing-events-array", "Timeline was missing an events array; loaded as an empty timeline.", "$.events");
+  return [];
+}
+
+function getInputSchemaVersion(input, diagnostics) {
+  if (!input.format) {
+    addDiagnostic(diagnostics, "warning", "missing-format", "Timeline was missing a format; treated as a legacy local timeline.", "$.format");
+  }
+  if (input.version === undefined || input.version === null || input.version === "") {
+    addDiagnostic(diagnostics, "warning", "missing-version", "Timeline was missing a schema version; treated as legacy version 1 data.", "$.version");
+    return 1;
+  }
+
+  const version = Number(input.version);
+  if (!Number.isFinite(version)) {
+    addDiagnostic(diagnostics, "warning", "invalid-version", "Timeline schema version was not numeric; treated as legacy version 1 data.", "$.version");
+    return 1;
+  }
+  if (version < 1) {
+    addDiagnostic(diagnostics, "warning", "invalid-version", "Timeline schema version was below 1; treated as legacy version 1 data.", "$.version");
+    return 1;
+  }
+  if (!Number.isInteger(version)) {
+    addDiagnostic(diagnostics, "warning", "fractional-version", `Timeline schema version ${input.version} was fractional; treated as version ${Math.floor(version)}.`, "$.version");
+  }
+  return Math.floor(version);
+}
+
+function normalizeTimelineTitle(title, diagnostics) {
+  const safeTitle = cleanText(title);
+  if (!safeTitle) {
+    addDiagnostic(diagnostics, "warning", "default-title", "Timeline was missing title; defaulted to Imported timeline.", "$.title");
+    return "Imported timeline";
+  }
+  return safeTitle;
+}
+
+function normalizeUpdatedAt(updatedAt, diagnostics) {
+  const safeUpdatedAt = cleanText(updatedAt);
+  if (!safeUpdatedAt) {
+    addDiagnostic(diagnostics, "warning", "default-updated-at", "Timeline was missing updatedAt; defaulted to the current time.", "$.updatedAt");
+    return new Date().toISOString();
+  }
+  return safeUpdatedAt;
 }
 
 function timestampSortValue(timestamp) {
@@ -344,7 +582,7 @@ function timestampSortValue(timestamp) {
 }
 
 function cleanText(value) {
-  return String(value || "").trim();
+  return value === undefined || value === null ? "" : String(value).trim();
 }
 
 function today() {
@@ -355,22 +593,52 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function getInputWarnings(input) {
-  const warnings = [];
-  if (!input.format) warnings.push("Timeline was missing a format; treated as a legacy local timeline.");
-  if (!input.version) warnings.push("Timeline was missing a schema version; treated as legacy data.");
-  if (Number(input.version || 1) > TIMELINE_VERSION) {
-    warnings.push(`Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`);
-  }
-  return warnings;
+function addDiagnostic(diagnostics, level, code, message, path) {
+  diagnostics.push({
+    level,
+    code,
+    message,
+    ...(path ? { path } : {})
+  });
 }
 
-function attachSchemaWarnings(timeline, warnings) {
-  Object.defineProperty(timeline, "schemaWarnings", {
-    value: warnings,
-    enumerable: false,
-    configurable: true
+function throwSchemaError(diagnostics, code, message, path) {
+  addDiagnostic(diagnostics, "error", code, message, path);
+  const error = new Error(message);
+  error.diagnostics = diagnostics;
+  throw error;
+}
+
+function attachSchemaDiagnostics(timeline, diagnostics) {
+  const warnings = diagnostics
+    .filter((diagnostic) => diagnostic.level === "warning")
+    .map((diagnostic) => diagnostic.message);
+  Object.defineProperties(timeline, {
+    schemaDiagnostics: {
+      value: diagnostics,
+      enumerable: false,
+      configurable: true
+    },
+    schemaWarnings: {
+      value: warnings,
+      enumerable: false,
+      configurable: true
+    }
   });
+}
+
+function isIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function isClockTime(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function isComplexValue(value) {
+  return value !== null && typeof value === "object";
 }
 
 function pickUnknown(source, knownKeys) {

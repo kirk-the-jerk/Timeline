@@ -22,11 +22,13 @@ Open `http://127.0.0.1:8000/`.
 
 ## Check
 
-Before finishing JavaScript changes, run:
+Before finishing JavaScript or schema changes, run:
 
 ```sh
 python scripts/check_js.py
 ```
+
+This performs JavaScript syntax checks and schema compatibility fixture tests.
 
 ## Conventions
 

@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.log
 *.timeline.json
+!tests/fixtures/schema/*.timeline.json
 *.timeline.html
 .vscode/timeline-server.pid
 .vscode/timeline-server.log

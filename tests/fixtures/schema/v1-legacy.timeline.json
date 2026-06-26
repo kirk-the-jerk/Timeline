@@ -1,0 +1,17 @@
+{
+  "title": "Legacy v1 timeline",
+  "events": [
+    {
+      "name": "Started the archive",
+      "date": "2020-01-02",
+      "location": "Vancouver, BC",
+      "fields": [
+        {
+          "key": "summary",
+          "label": "Summary",
+          "value": "Imported from the first prototype."
+        }
+      ]
+    }
+  ]
+}
