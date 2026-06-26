@@ -9,39 +9,55 @@
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <a class="brand" href="index.html">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span>Timeline Player</span>
-        </a>
+        <div class="timeline-title-editor">
+          <div class="title-row">
+            <div class="title-display">
+              <span id="timeline-title-text">No timeline loaded</span>
+            </div>
+            <div class="header-actions" id="header-actions">
+              <button class="icon-button attention" type="button" id="open-load-file" aria-label="Load timeline file" title="Load">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <path d="m7 10 5-5 5 5"></path>
+                  <path d="M12 5v12"></path>
+                </svg>
+              </button>
+              <input class="sr-only" id="load-file" type="file">
+            </div>
+          </div>
+        </div>
         <nav class="nav-links" aria-label="App pages">
           <a class="button" href="index.html">Product</a>
           <a class="button" href="editor.html">Editor</a>
         </nav>
       </header>
 
-      <section class="workspace">
-        <aside class="panel stack">
-          <h1>Open timeline JSON</h1>
-          <div class="field">
-            <label for="timeline-file">Choose JSON file</label>
-            <input id="timeline-file" type="file" accept="application/json,.json">
-          </div>
-          <div class="drop-zone" id="drop-zone">
-            <div>
-              <strong>Drop a timeline JSON file here</strong>
-              <div class="small">Export one from the editor first.</div>
-            </div>
-          </div>
-          <div class="status" id="status" role="status"></div>
-        </aside>
-
-        <section class="panel">
-          <h1 id="timeline-title">No timeline loaded</h1>
-          <p id="timeline-summary">Pick or drop a JSON file to render its events.</p>
+      <section class="player-workspace">
+        <section class="panel player-panel">
+          <p id="timeline-summary">Use the load button in the header or drop a timeline file onto the header.</p>
           <div class="timeline" id="timeline"></div>
+          <div class="status" id="status" role="status"></div>
         </section>
       </section>
     </main>
+
+    <dialog class="modal" id="load-dialog">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <h2>Load timeline</h2>
+          <button class="icon-button" type="button" id="close-load-dialog" aria-label="Close load dialog">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="progress-track" aria-label="Load progress">
+          <div class="progress-bar" id="load-progress-bar"></div>
+        </div>
+        <div class="load-log" id="load-log" role="status"></div>
+      </div>
+    </dialog>
 
     <script type="module" src="src/player.js"></script>
   </body>

@@ -7,6 +7,7 @@ from shutil import which
 ROOT = Path(__file__).resolve().parent.parent
 JS_FILES = [
     "src/timeline.js",
+    "src/fileLoad.js",
     "src/db.js",
     "src/editor.js",
     "src/player.js",

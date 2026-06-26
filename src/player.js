@@ -1,55 +1,76 @@
-import { canRenderImageMedia, formatDisplayTimestamp, getEventTitle, getEventTypeLabel, getTimelineSchemaWarnings, readTimelineFile, resolveEventImage, sortEvents } from "./timeline.js";
+import { createTimelineLoadController } from "./fileLoad.js";
+import {
+  canRenderImageMedia,
+  formatDisplayTimestamp,
+  getEventTitle,
+  getEventTypeLabel,
+  normalizeTimeline,
+  resolveEventImage,
+  sortEvents
+} from "./timeline.js";
 
-const fileInput = document.querySelector("#timeline-file");
-const dropZone = document.querySelector("#drop-zone");
+const topbar = document.querySelector(".topbar");
+const headerActions = document.querySelector("#header-actions");
+const loadButton = document.querySelector("#open-load-file");
+const loadFileInput = document.querySelector("#load-file");
+const loadDialog = document.querySelector("#load-dialog");
+const closeLoadDialogButton = document.querySelector("#close-load-dialog");
+const loadProgressBar = document.querySelector("#load-progress-bar");
+const loadLog = document.querySelector("#load-log");
 const status = document.querySelector("#status");
-const title = document.querySelector("#timeline-title");
+const titleText = document.querySelector("#timeline-title-text");
 const summary = document.querySelector("#timeline-summary");
 const timelineEl = document.querySelector("#timeline");
 
-fileInput.addEventListener("change", async () => {
-  const file = fileInput.files?.[0];
-  if (!file) return;
-  await loadFile(file);
-  fileInput.value = "";
+let timelineDocument = null;
+
+createTimelineLoadController({
+  dialog: loadDialog,
+  closeButton: closeLoadDialogButton,
+  openButton: loadButton,
+  fileInput: loadFileInput,
+  dropTargets: [topbar],
+  dragClassTarget: headerActions,
+  progressBar: loadProgressBar,
+  log: loadLog,
+  onTimelineLoaded: async (loadedTimeline) => {
+    renderTimeline(loadedTimeline);
+  },
+  onStatus: setStatus
 });
 
-dropZone.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  dropZone.classList.add("dragging");
-});
+init();
 
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("dragging");
-});
+function init() {
+  const embeddedData = document.querySelector("#timeline-data");
+  if (!embeddedData) {
+    renderEmptyState();
+    return;
+  }
 
-dropZone.addEventListener("drop", async (event) => {
-  event.preventDefault();
-  dropZone.classList.remove("dragging");
-  const file = event.dataTransfer.files?.[0];
-  if (!file) return;
-  await loadFile(file);
-});
-
-async function loadFile(file) {
   try {
-    const timelineDocument = await readTimelineFile(file);
-    renderTimeline(timelineDocument);
-    const warnings = getTimelineSchemaWarnings(timelineDocument);
-    if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
-    status.textContent = warnings.length > 0
-      ? `Loaded ${file.name} with ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
-      : `Loaded ${file.name}.`;
+    renderTimeline(normalizeTimeline(JSON.parse(embeddedData.textContent)));
+    setStatus("Loaded embedded timeline.");
   } catch (error) {
-    status.textContent = `Could not load timeline: ${error.message}`;
+    renderEmptyState();
+    setStatus(`Could not load embedded timeline: ${error.message}`);
   }
 }
 
-function renderTimeline(timelineDocument) {
+function renderEmptyState() {
+  titleText.textContent = "No timeline loaded";
+  summary.textContent = "Use the load button in the header or drop a timeline file onto the header.";
+  timelineEl.innerHTML = `<div class="empty-state">No timeline loaded.</div>`;
+  loadButton.classList.add("attention");
+}
+
+function renderTimeline(loadedTimeline) {
+  timelineDocument = loadedTimeline;
   const events = sortEvents(timelineDocument.events);
-  title.textContent = timelineDocument.title;
+  titleText.textContent = timelineDocument.title;
   summary.textContent = `${events.length} event${events.length === 1 ? "" : "s"} in this timeline.`;
   timelineEl.innerHTML = "";
+  loadButton.classList.remove("attention");
 
   if (events.length === 0) {
     timelineEl.innerHTML = `<div class="empty-state">This timeline does not contain any events.</div>`;
@@ -62,7 +83,7 @@ function renderTimeline(timelineDocument) {
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="timeline-card">
-        ${renderEventImage(timelineDocument, event)}
+        ${renderEventImage(event)}
         <h2>${escapeHtml(getEventTitle(event))}</h2>
         <div class="small">${escapeHtml(getEventTypeLabel(event.type))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
         ${renderImageLink(event.imageLink)}
@@ -73,7 +94,7 @@ function renderTimeline(timelineDocument) {
   }
 }
 
-function renderEventImage(timelineDocument, event) {
+function renderEventImage(event) {
   const image = resolveEventImage(timelineDocument, event);
   if (!canRenderImageMedia(image)) return "";
   return `<img class="timeline-image" src="${escapeHtml(image.dataUrl)}" alt="">`;
@@ -98,6 +119,10 @@ function renderFieldSummary(fields) {
       `).join("")}
     </dl>
   `;
+}
+
+function setStatus(message) {
+  status.textContent = message;
 }
 
 function escapeHtml(value) {

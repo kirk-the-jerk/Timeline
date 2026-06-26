@@ -1,4 +1,5 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
+import { createTimelineLoadController, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
 import {
   canRenderImageMedia,
@@ -15,36 +16,60 @@ import {
   getEventTimeZone,
   getEventTitle,
   getEventTypeLabel,
-  getTimelineSchemaWarnings,
   makeFieldFromPreset,
   normalizeTimeline,
-  readTimelineFile,
   resolveEventImage,
   sortEvents
 } from "./timeline.js";
 
 const form = document.querySelector("#timeline-form");
+const formTitle = document.querySelector("#event-form-title");
+const titleDisplay = document.querySelector("#title-display");
+const titleText = document.querySelector("#timeline-title-text");
+const editTitleTrigger = document.querySelector("#edit-title-trigger");
 const titleInput = document.querySelector("#timeline-title");
+const titleEditControls = document.querySelector("#title-edit-controls");
+const saveTitleButton = document.querySelector("#save-title");
+const cancelTitleButton = document.querySelector("#cancel-title");
+const topbar = document.querySelector(".topbar");
+const headerActions = document.querySelector("#header-actions");
+const openSaveDialogButton = document.querySelector("#open-save-dialog");
+const saveDialog = document.querySelector("#save-dialog");
+const closeSaveDialogButton = document.querySelector("#close-save-dialog");
+const saveDialogStatus = document.querySelector("#save-dialog-status");
+const openLoadFileButton = document.querySelector("#open-load-file");
+const loadFileInput = document.querySelector("#load-file");
+const loadDialog = document.querySelector("#load-dialog");
+const closeLoadDialogButton = document.querySelector("#close-load-dialog");
+const loadProgressBar = document.querySelector("#load-progress-bar");
+const loadLog = document.querySelector("#load-log");
+const clearTimelineButton = document.querySelector("#clear-timeline");
 const typeInput = document.querySelector("#event-type");
 const eventTitleInput = document.querySelector("#event-title");
 const dateInput = document.querySelector("#event-date");
+const datetimeOptions = document.querySelector("#datetime-options");
+const datetimeSummary = document.querySelector("#datetime-summary");
 const timeInput = document.querySelector("#event-time");
 const tzInput = document.querySelector("#event-tz");
+const locationOptions = document.querySelector("#location-options");
+const locationSummary = document.querySelector("#location-summary");
 const locationInput = document.querySelector("#event-location");
+const imageOptions = document.querySelector("#image-options");
+const imageSummary = document.querySelector("#image-summary");
 const imageLinkInput = document.querySelector("#event-image-link");
 const imageFileInput = document.querySelector("#event-image-file");
 const imageDropZone = document.querySelector("#image-drop-zone");
 const imagePreview = document.querySelector("#image-preview");
+const fieldsOptions = document.querySelector("#fields-options");
+const fieldsSummary = document.querySelector("#fields-summary");
 const fieldPresetInput = document.querySelector("#field-preset");
 const addPresetFieldButton = document.querySelector("#add-preset-field");
 const customFieldLabelInput = document.querySelector("#custom-field-label");
 const addCustomFieldButton = document.querySelector("#add-custom-field");
 const customFields = document.querySelector("#custom-fields");
+const submitEventButton = document.querySelector("#submit-event");
+const cancelEditButton = document.querySelector("#cancel-edit");
 const addDummyButton = document.querySelector("#add-dummy");
-const saveJsonButton = document.querySelector("#save-json");
-const saveHtmlButton = document.querySelector("#save-html");
-const loadJsonInput = document.querySelector("#load-json");
-const resetButton = document.querySelector("#reset-timeline");
 const eventList = document.querySelector("#event-list");
 const status = document.querySelector("#status");
 
@@ -52,8 +77,31 @@ let timeline = createEmptyTimeline();
 let draftFields = [];
 let draftImage = null;
 let lastTimeZone = getBrowserTimeZone();
+let editingEventId = null;
+let isEditingTitle = false;
 
 init();
+
+createTimelineLoadController({
+  dialog: loadDialog,
+  closeButton: closeLoadDialogButton,
+  openButton: openLoadFileButton,
+  fileInput: loadFileInput,
+  dropTargets: [topbar],
+  dragClassTarget: headerActions,
+  progressBar: loadProgressBar,
+  log: loadLog,
+  onTimelineLoaded: async (timelineDocument, { file, warnings }) => {
+    timeline = timelineDocument;
+    lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
+    setTitleEditing(false, { focus: false });
+    resetEventForm();
+    await persist(warnings.length > 0
+      ? `Loaded ${file.name} with ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
+      : `Loaded ${file.name}.`);
+  },
+  onStatus: setStatus
+});
 
 async function init() {
   populateEventTypes();
@@ -75,12 +123,22 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   syncDraftFieldValues();
 
+  const previousEvent = editingEventId
+    ? timeline.events.find((item) => item.id === editingEventId)
+    : null;
+  if (editingEventId && !previousEvent) {
+    resetEventForm();
+    render();
+    setStatus("Could not update because the event no longer exists.");
+    return;
+  }
+
   const imageId = draftImage?.id || "";
   if (draftImage && !timeline.media.some((item) => item.id === draftImage.id)) {
     timeline.media = [...timeline.media, draftImage];
   }
 
-  const newEvent = createEvent({
+  const savedEvent = createEvent({
     type: typeInput.value,
     title: eventTitleInput.value,
     date: dateInput.value,
@@ -92,22 +150,83 @@ form.addEventListener("submit", async (event) => {
     fields: draftFields
   });
 
-  lastTimeZone = getEventTimeZone(newEvent) || lastTimeZone;
-  timeline.events = sortEvents([...timeline.events, newEvent]);
+  const nextEvent = previousEvent
+    ? {
+      ...previousEvent,
+      ...savedEvent,
+      id: previousEvent.id
+    }
+    : savedEvent;
+
+  lastTimeZone = getEventTimeZone(nextEvent) || lastTimeZone;
+  timeline.events = previousEvent
+    ? sortEvents(timeline.events.map((item) => item.id === previousEvent.id ? nextEvent : item))
+    : sortEvents([...timeline.events, nextEvent]);
+  if (previousEvent) removeUnusedMediaForEvent(previousEvent);
   resetEventForm();
-  await persist("Event added.");
+  await persist(previousEvent ? "Event updated." : "Event added.");
   eventTitleInput.focus();
 });
 
-titleInput.addEventListener("change", async () => {
-  timeline.title = titleInput.value.trim() || "Untitled timeline";
-  await persist("Title saved.");
+editTitleTrigger.addEventListener("click", () => {
+  setTitleEditing(true);
 });
+
+saveTitleButton.addEventListener("click", async () => {
+  await commitTimelineTitle();
+});
+
+cancelTitleButton.addEventListener("click", () => {
+  setTitleEditing(false);
+  setStatus("Title edit canceled.");
+});
+
+titleInput.addEventListener("keydown", async (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    await commitTimelineTitle();
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    setTitleEditing(false);
+    setStatus("Title edit canceled.");
+  }
+});
+
+openSaveDialogButton.addEventListener("click", () => {
+  saveDialogStatus.textContent = "";
+  showDialog(saveDialog);
+});
+
+closeSaveDialogButton.addEventListener("click", () => {
+  saveDialog.close();
+});
+
+saveDialog.addEventListener("click", (event) => {
+  if (event.target === saveDialog) saveDialog.close();
+});
+
+saveDialog.addEventListener("click", (event) => {
+  if (event.target.closest(".info-button")) return;
+  const option = event.target.closest("[data-save-format]");
+  if (!option) return;
+  saveTimelineAs(option.dataset.saveFormat);
+});
+
+clearTimelineButton.addEventListener("click", async () => {
+  await clearTimelineDraft();
+});
+
+timeInput.addEventListener("input", renderOptionalSummaries);
+tzInput.addEventListener("change", renderOptionalSummaries);
+locationInput.addEventListener("input", renderOptionalSummaries);
+imageLinkInput.addEventListener("input", renderOptionalSummaries);
 
 addPresetFieldButton.addEventListener("click", () => {
   const field = makeFieldFromPreset(fieldPresetInput.value);
   if (!field) return;
   draftFields = [...draftFields, field];
+  fieldsOptions.open = true;
   renderDraftFields();
 });
 
@@ -115,6 +234,7 @@ addCustomFieldButton.addEventListener("click", () => {
   const field = createCustomField(customFieldLabelInput.value);
   draftFields = [...draftFields, field];
   customFieldLabelInput.value = "";
+  fieldsOptions.open = true;
   renderDraftFields();
 });
 
@@ -123,6 +243,7 @@ customFields.addEventListener("input", (event) => {
   if (!input) return;
   const field = draftFields.find((item) => item.id === input.dataset.fieldValue);
   if (field) field.value = input.value;
+  renderOptionalSummaries();
 });
 
 customFields.addEventListener("click", (event) => {
@@ -130,6 +251,13 @@ customFields.addEventListener("click", (event) => {
   if (!button) return;
   draftFields = draftFields.filter((field) => field.id !== button.dataset.removeField);
   renderDraftFields();
+});
+
+cancelEditButton.addEventListener("click", () => {
+  resetEventForm();
+  render();
+  setStatus("Edit canceled.");
+  eventTitleInput.focus();
 });
 
 imageFileInput.addEventListener("change", async () => {
@@ -191,58 +319,63 @@ addDummyButton.addEventListener("click", async () => {
   await persist("Dummy event added.");
 });
 
-saveJsonButton.addEventListener("click", () => {
-  timeline.title = titleInput.value.trim() || "Untitled timeline";
-  downloadTimeline(timeline);
-  setStatus("JSON export started.");
-});
-
-saveHtmlButton.addEventListener("click", () => {
-  timeline.title = titleInput.value.trim() || "Untitled timeline";
-  downloadStandaloneHtml(timeline);
-  setStatus("Standalone HTML export started.");
-});
-
-loadJsonInput.addEventListener("change", async () => {
-  const file = loadJsonInput.files?.[0];
-  if (!file) return;
-
-  try {
-    timeline = await readTimelineFile(file);
-    lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
-    resetEventForm();
-    const warnings = getTimelineSchemaWarnings(timeline);
-    if (warnings.length > 0) console.warn("Timeline schema warnings", warnings);
-    await persist(warnings.length > 0
-      ? `Loaded ${file.name}. ${warnings.length} schema warning${warnings.length === 1 ? "" : "s"}.`
-      : `Loaded ${file.name}.`);
-  } catch (error) {
-    setStatus(`Import failed: ${error.message}`);
-  } finally {
-    loadJsonInput.value = "";
-  }
-});
-
-resetButton.addEventListener("click", async () => {
+async function clearTimelineDraft() {
   timeline = createEmptyTimeline();
   await clearActiveTimeline();
   lastTimeZone = getBrowserTimeZone();
+  setTitleEditing(false);
   resetEventForm();
   await persist("Local draft reset.");
-});
+}
+
+async function saveTimelineAs(format) {
+  timeline.title = getTimelineTitleValue();
+
+  if (format === "json") {
+    downloadTimeline(timeline);
+    saveDialog.close();
+    setStatus("JSON export started.");
+    return;
+  }
+
+  if (format === "html-single") {
+    downloadStandaloneHtml(timeline);
+    saveDialog.close();
+    setStatus("Standalone HTML export started.");
+    return;
+  }
+
+  if (format === "zip") {
+    saveDialogStatus.textContent = "ZIP export is not implemented yet.";
+    setStatus("ZIP export is not implemented yet.");
+    return;
+  }
+
+  if (format === "html-images") {
+    saveDialogStatus.textContent = "HTML + images export is not implemented yet.";
+    setStatus("HTML + images export is not implemented yet.");
+  }
+}
 
 eventList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-delete-id]");
-  if (!button) return;
-  const deletedEvent = timeline.events.find((item) => item.id === button.dataset.deleteId);
-  timeline.events = timeline.events.filter((item) => item.id !== button.dataset.deleteId);
+  const editButton = event.target.closest("[data-edit-id]");
+  if (editButton) {
+    startEditingEvent(editButton.dataset.editId);
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-id]");
+  if (!deleteButton) return;
+  const deletedEvent = timeline.events.find((item) => item.id === deleteButton.dataset.deleteId);
+  timeline.events = timeline.events.filter((item) => item.id !== deleteButton.dataset.deleteId);
   removeUnusedMediaForEvent(deletedEvent);
+  if (editingEventId === deletedEvent?.id) resetEventForm();
   lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
   await persist("Event deleted.");
 });
 
 async function persist(message) {
-  timeline.title = titleInput.value.trim() || timeline.title || "Untitled timeline";
+  timeline.title = getTimelineTitleValue();
   timeline = normalizeTimeline(await saveActiveTimeline(timeline));
   render();
   setStatus(message);
@@ -267,7 +400,7 @@ function populateFieldPresets() {
 }
 
 function render() {
-  titleInput.value = timeline.title;
+  renderTimelineTitle();
   eventList.innerHTML = "";
 
   if (timeline.events.length === 0) {
@@ -277,7 +410,7 @@ function render() {
 
   for (const event of sortEvents(timeline.events)) {
     const row = document.createElement("article");
-    row.className = "event-item";
+    row.className = event.id === editingEventId ? "event-item editing" : "event-item";
     row.innerHTML = `
       <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
       <div class="event-summary">
@@ -287,10 +420,19 @@ function render() {
         ${renderImageLink(event.imageLink)}
         ${renderFieldSummary(event.fields)}
       </div>
-      <button type="button" data-delete-id="${escapeHtml(event.id)}">Delete</button>
+      <div class="event-actions">
+        <button type="button" data-edit-id="${escapeHtml(event.id)}">Edit</button>
+        <button type="button" data-delete-id="${escapeHtml(event.id)}">Delete</button>
+      </div>
     `;
     eventList.append(row);
   }
+}
+
+function renderTimelineTitle() {
+  const title = timeline.title || "Untitled timeline";
+  titleText.textContent = title;
+  if (!isEditingTitle) titleInput.value = title;
 }
 
 function renderEventImage(event) {
@@ -309,6 +451,7 @@ function renderDraftFields() {
 
   if (draftFields.length === 0) {
     customFields.innerHTML = `<div class="empty-state compact">No extra fields on this draft event.</div>`;
+    renderOptionalSummaries();
     return;
   }
 
@@ -322,6 +465,7 @@ function renderDraftFields() {
     `;
     customFields.append(row);
   }
+  renderOptionalSummaries();
 }
 
 function renderImagePreview() {
@@ -329,6 +473,7 @@ function renderImagePreview() {
 
   if (!draftImage) {
     imagePreview.innerHTML = `<div class="empty-state compact">No image attached to this draft event.</div>`;
+    renderOptionalSummaries();
     return;
   }
 
@@ -348,6 +493,25 @@ function renderImagePreview() {
     renderImagePreview();
     setStatus("Image removed from draft event.");
   });
+  renderOptionalSummaries();
+}
+
+function renderOptionalSummaries() {
+  const time = timeInput.value;
+  const location = locationInput.value.trim();
+  const imageLink = imageLinkInput.value.trim();
+  const populatedFieldCount = draftFields.filter((field) => field.value).length;
+
+  datetimeSummary.textContent = time ? `${time} ${tzInput.value}` : "No time set";
+  locationSummary.textContent = location || "No location";
+  imageSummary.textContent = draftImage
+    ? "Image attached"
+    : imageLink
+      ? "Image link set"
+      : "No image";
+  fieldsSummary.textContent = draftFields.length === 0
+    ? "No extra fields"
+    : `${draftFields.length} field${draftFields.length === 1 ? "" : "s"}${populatedFieldCount > 0 ? `, ${populatedFieldCount} filled` : ""}`;
 }
 
 function renderFieldSummary(fields) {
@@ -367,6 +531,11 @@ function renderFieldSummary(fields) {
 }
 
 function resetEventForm() {
+  editingEventId = null;
+  formTitle.textContent = "Add event";
+  submitEventButton.textContent = "Add event";
+  cancelEditButton.hidden = true;
+  addDummyButton.hidden = false;
   typeInput.value = "life";
   eventTitleInput.value = "";
   dateInput.value = new Date().toISOString().slice(0, 10);
@@ -377,8 +546,81 @@ function resetEventForm() {
   imageFileInput.value = "";
   draftImage = null;
   draftFields = [];
+  closeOptionalSections();
   renderImagePreview();
   renderDraftFields();
+}
+
+async function commitTimelineTitle() {
+  timeline.title = titleInput.value.trim() || "Untitled timeline";
+  setTitleEditing(false);
+  await persist("Title saved.");
+}
+
+function setTitleEditing(isEditing, { focus = true } = {}) {
+  isEditingTitle = isEditing;
+  titleDisplay.hidden = isEditing;
+  editTitleTrigger.hidden = isEditing;
+  titleEditControls.hidden = !isEditing;
+  renderTimelineTitle();
+  if (!focus) return;
+  if (isEditing) {
+    titleInput.focus();
+    titleInput.select();
+  } else {
+    editTitleTrigger.focus();
+  }
+}
+
+function getTimelineTitleValue() {
+  const title = isEditingTitle ? titleInput.value : timeline.title;
+  return String(title || "").trim() || "Untitled timeline";
+}
+
+function closeOptionalSections() {
+  datetimeOptions.open = false;
+  locationOptions.open = false;
+  imageOptions.open = false;
+  fieldsOptions.open = false;
+}
+
+function openPopulatedOptionalSections() {
+  datetimeOptions.open = Boolean(timeInput.value);
+  locationOptions.open = Boolean(locationInput.value.trim());
+  imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImage);
+  fieldsOptions.open = draftFields.length > 0;
+}
+
+function startEditingEvent(eventId) {
+  const event = timeline.events.find((item) => item.id === eventId);
+  if (!event) {
+    setStatus("Could not edit because the event no longer exists.");
+    return;
+  }
+
+  editingEventId = event.id;
+  formTitle.textContent = "Edit event";
+  submitEventButton.textContent = "Save changes";
+  cancelEditButton.hidden = false;
+  addDummyButton.hidden = true;
+
+  typeInput.value = event.type;
+  eventTitleInput.value = getEventTitle(event);
+  dateInput.value = event.timestamp?.date || new Date().toISOString().slice(0, 10);
+  timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";
+  tzInput.value = getEventTimeZone(event) || lastTimeZone;
+  locationInput.value = event.location || "";
+  imageLinkInput.value = event.imageLink || "";
+  imageFileInput.value = "";
+  draftImage = resolveEventImage(timeline, event) || null;
+  draftFields = Array.isArray(event.fields)
+    ? event.fields.map((field) => ({ ...field }))
+    : [];
+  renderImagePreview();
+  renderDraftFields();
+  openPopulatedOptionalSections();
+  eventTitleInput.focus();
+  setStatus("Editing event. Save changes or cancel to return to adding events.");
 }
 
 async function setDraftImageFromFile(file) {
@@ -389,6 +631,7 @@ async function setDraftImageFromFile(file) {
       throw new Error("Encoded image did not pass schema checks.");
     }
     draftImage = media;
+    imageOptions.open = true;
     renderImagePreview();
     setStatus("Image attached as resized JPEG with metadata removed.");
   } catch (error) {
