@@ -537,7 +537,7 @@ select {
 
 .event-item {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) auto;
+  grid-template-columns: 56px minmax(0, 1fr) 84px auto;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -553,12 +553,25 @@ select {
 
 .event-date {
   color: var(--accent-dark);
+  font-size: 0.9rem;
   font-weight: 800;
 }
 
 .event-name {
   overflow-wrap: anywhere;
   font-weight: 800;
+}
+
+.event-type-emoji {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf7;
+  font-size: 1.8rem;
+  line-height: 1;
 }
 
 .event-summary {
@@ -741,10 +754,17 @@ select {
   height: 16px;
 }
 
-.event-thumb-wrap {
+.event-thumb-wrap,
+.event-thumb-placeholder {
   position: relative;
   width: 84px;
   height: 64px;
+}
+
+.event-thumb-placeholder {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: #fbfaf7;
 }
 
 .event-thumb {
@@ -930,6 +950,42 @@ select {
   cursor: not-allowed;
 }
 
+.export-events-section {
+  background: var(--panel);
+}
+
+.export-event-types {
+  display: grid;
+  gap: 6px;
+  margin: 0 12px;
+}
+
+.export-event-type {
+  display: grid;
+  grid-template-columns: auto 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.event-type-swatch {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf7;
+  line-height: 1;
+}
+
+.export-event-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 12px;
+}
+
 .save-actions {
   display: flex;
   justify-content: flex-end;
@@ -1021,11 +1077,24 @@ select {
   }
 
   .event-item {
-    grid-template-columns: 1fr;
+    grid-template-columns: 48px minmax(0, 1fr) 72px auto;
   }
 
   .event-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
+  }
+
+  .event-type-emoji {
+    width: 44px;
+    height: 44px;
+    font-size: 1.55rem;
+  }
+
+  .event-thumb-wrap,
+  .event-thumb-placeholder,
+  .event-thumb {
+    width: 72px;
+    height: 54px;
   }
 
   .field-grid,

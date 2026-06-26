@@ -17,7 +17,8 @@ import {
   getBrowserTimeZone,
   getEventTimeZone,
   getEventTitle,
-  getEventTypeDisplay,
+  getEventTypeEmoji,
+  getEventTypeLabel,
   getEventTypes,
   makeFieldFromPreset,
   normalizeTimeline,
@@ -44,6 +45,12 @@ const saveDialogStatus = document.querySelector("#save-dialog-status");
 const exportTimelineTitleInput = document.querySelector("#export-timeline-title");
 const htmlPlayerField = document.querySelector("#html-player-field");
 const htmlPlayerTypeInput = document.querySelector("#html-player-type");
+const exportEventsOptions = document.querySelector("#export-events-options");
+const exportEventsSummary = document.querySelector("#export-events-summary");
+const exportEventTypes = document.querySelector("#export-event-types");
+const selectAllExportEventsButton = document.querySelector("#select-all-export-events");
+const clearExportEventsButton = document.querySelector("#clear-export-events");
+const saveSubmitButton = document.querySelector("#save-submit");
 const openLoadFileButton = document.querySelector("#open-load-file");
 const loadFileInput = document.querySelector("#load-file");
 const loadDialog = document.querySelector("#load-dialog");
@@ -91,6 +98,7 @@ let draftImages = [];
 let lastTimeZone = getBrowserTimeZone();
 let editingEventId = null;
 let isEditingTitle = false;
+let exportEventTypeSelection = new Set();
 
 init();
 
@@ -223,6 +231,27 @@ saveDialog.addEventListener("click", (event) => {
 });
 
 saveForm.addEventListener("change", updateSaveFormatControls);
+
+exportEventTypes.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-export-event-type]");
+  if (!checkbox) return;
+  if (checkbox.checked) {
+    exportEventTypeSelection.add(checkbox.value);
+  } else {
+    exportEventTypeSelection.delete(checkbox.value);
+  }
+  renderExportEventTypeControls();
+});
+
+selectAllExportEventsButton.addEventListener("click", () => {
+  exportEventTypeSelection = new Set(getExportableEventTypes().map((eventType) => eventType.value));
+  renderExportEventTypeControls();
+});
+
+clearExportEventsButton.addEventListener("click", () => {
+  exportEventTypeSelection = new Set();
+  renderExportEventTypeControls();
+});
 
 saveForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -405,10 +434,8 @@ async function addCustomEventTypeToTimeline() {
 }
 
 async function saveTimelineAs(format) {
-  const exportTimeline = {
-    ...timeline,
-    title: getExportTimelineTitleValue()
-  };
+  const exportTimeline = getExportTimeline();
+  if (!exportTimeline) return;
 
   if (format === "json") {
     downloadTimeline(exportTimeline);
@@ -439,6 +466,9 @@ async function saveTimelineAs(format) {
 
 function prepareSaveDialog() {
   exportTimelineTitleInput.value = getTimelineTitleValue();
+  exportEventsOptions.open = false;
+  exportEventTypeSelection = new Set(getExportableEventTypes().map((eventType) => eventType.value));
+  renderExportEventTypeControls();
   updateSaveFormatControls();
 }
 
@@ -456,6 +486,68 @@ function updateSaveFormatControls() {
 
 function isHtmlSaveFormat(format) {
   return format === "html-single" || format === "html-images";
+}
+
+function getExportTimeline() {
+  const selectedTypes = getSelectedExportEventTypes();
+  if (selectedTypes.size === 0) {
+    saveDialogStatus.textContent = "Select at least one event type to export.";
+    setStatus("Select at least one event type to export.", "warning");
+    return null;
+  }
+
+  const events = timeline.events.filter((event) => selectedTypes.has(event.type));
+  const eventTypes = getEventTypes(timeline).filter((eventType) => selectedTypes.has(eventType.value));
+  return {
+    ...timeline,
+    title: getExportTimelineTitleValue(),
+    eventTypes,
+    events
+  };
+}
+
+function renderExportEventTypeControls() {
+  const eventTypes = getExportableEventTypes();
+  const counts = getEventTypeCounts();
+  exportEventTypes.innerHTML = eventTypes.map((eventType) => `
+    <label class="export-event-type">
+      <input type="checkbox" value="${escapeHtml(eventType.value)}" data-export-event-type ${exportEventTypeSelection.has(eventType.value) ? "checked" : ""}>
+      <span class="event-type-swatch" aria-hidden="true">${escapeHtml(eventType.emoji || "")}</span>
+      <span>${escapeHtml(eventType.label)}</span>
+      <span class="small">${counts.get(eventType.value) || 0} event${counts.get(eventType.value) === 1 ? "" : "s"}</span>
+    </label>
+  `).join("");
+  updateExportEventsSummary(eventTypes);
+}
+
+function updateExportEventsSummary(eventTypes = getExportableEventTypes()) {
+  const selectedCount = getSelectedExportEventTypes().size;
+  if (selectedCount === eventTypes.length) {
+    exportEventsSummary.textContent = "All event types";
+  } else if (selectedCount === 0) {
+    exportEventsSummary.textContent = "No event types selected";
+  } else {
+    exportEventsSummary.textContent = `${selectedCount} of ${eventTypes.length} event types`;
+  }
+  saveDialogStatus.textContent = selectedCount === 0 ? "Select at least one event type to export." : "";
+  saveSubmitButton.disabled = selectedCount === 0;
+}
+
+function getSelectedExportEventTypes() {
+  const eventTypeValues = new Set(getExportableEventTypes().map((eventType) => eventType.value));
+  return new Set([...exportEventTypeSelection].filter((value) => eventTypeValues.has(value)));
+}
+
+function getExportableEventTypes() {
+  return getEventTypes(timeline);
+}
+
+function getEventTypeCounts() {
+  const counts = new Map();
+  for (const event of timeline.events) {
+    counts.set(event.type, (counts.get(event.type) || 0) + 1);
+  }
+  return counts;
 }
 
 eventList.addEventListener("click", async (event) => {
@@ -542,14 +634,15 @@ function render() {
   for (const event of sortEvents(timeline.events)) {
     const row = document.createElement("article");
     row.className = event.id === editingEventId ? "event-item editing" : "event-item";
+    const eventTypeLabel = getEventTypeLabel(event.type, timeline);
+    const eventTypeTooltip = `${eventTypeLabel.toLowerCase()} event`;
     row.innerHTML = `
-      <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp))}</div>
+      <div class="event-type-emoji" role="img" aria-label="${escapeHtml(eventTypeTooltip)}" title="${escapeHtml(eventTypeTooltip)}">${escapeHtml(getEventTypeEmoji(event.type, timeline))}</div>
       <div class="event-summary">
-        ${renderEventThumbnail(event)}
+        <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp))}</div>
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
-        <div class="small">${escapeHtml(getEventTypeDisplay(event.type, timeline))}${event.location ? ` / ${escapeHtml(event.location)}` : ""}</div>
-        ${renderFieldSummary(event.fields)}
       </div>
+      ${renderEventThumbnail(event)}
       <div class="event-actions">
         <button class="icon-button" type="button" data-edit-id="${escapeHtml(event.id)}" aria-label="Edit event" title="Edit">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -587,7 +680,7 @@ function renderTimelineTitle() {
 function renderEventThumbnail(event) {
   const images = resolveEventImages(timeline, event);
   const image = images.find((item) => item.kind === "link" || canRenderImageMedia(item.media));
-  if (!image) return "";
+  if (!image) return `<div class="event-thumb-placeholder" aria-hidden="true"></div>`;
   const src = image.kind === "embedded" ? image.media.dataUrl : image.url;
   const extraCount = images.length - 1;
   return `
@@ -708,22 +801,6 @@ function renderOptionalSummaries() {
   fieldsSummary.textContent = draftFields.length === 0
     ? "No extra fields"
     : `${draftFields.length} field${draftFields.length === 1 ? "" : "s"}${populatedFieldCount > 0 ? `, ${populatedFieldCount} filled` : ""}`;
-}
-
-function renderFieldSummary(fields) {
-  const populatedFields = fields.filter((field) => field.value);
-  if (populatedFields.length === 0) return "";
-
-  return `
-    <dl class="field-summary">
-      ${populatedFields.map((field) => `
-        <div>
-          <dt>${escapeHtml(field.label)}</dt>
-          <dd>${escapeHtml(field.value)}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
 }
 
 function resetEventForm() {
