@@ -1,5 +1,5 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 5;
+export const TIMELINE_VERSION = 6;
 export const DEFAULT_EVENT_TYPE = "misc";
 
 export const EVENT_TYPES = [
@@ -40,12 +40,13 @@ export function createEmptyTimeline() {
     title: "Untitled timeline",
     updatedAt: new Date().toISOString(),
     eventTypes: cloneEventTypes(EVENT_TYPES),
+    collections: [],
     media: [],
     events: []
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, images, fields, eventTypes }) {
+export function createEvent({ type, title, date, time, tz, location, images, fields, collectionIds, eventTypes, collections }) {
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type, eventTypes),
@@ -53,7 +54,8 @@ export function createEvent({ type, title, date, time, tz, location, images, fie
     timestamp: normalizeTimestamp({ date, time, tz }),
     location: cleanText(location),
     images: normalizeEventImages(images),
-    fields: normalizeFields(fields)
+    fields: normalizeFields(fields),
+    collectionIds: normalizeEventCollectionIds(collectionIds, collections)
   };
 }
 
@@ -88,6 +90,7 @@ export function normalizeTimelineWithDiagnostics(input) {
   const migratedInput = migrateTimelineInput(input, diagnostics);
   const inputEvents = getEventInputs(migratedInput, diagnostics);
   const eventTypes = normalizeEventTypes(migratedInput.eventTypes, diagnostics, "$.eventTypes");
+  const collections = normalizeCollections(migratedInput.collections, diagnostics, "$.collections");
   const mediaById = new Map();
 
   if (Array.isArray(migratedInput.media)) {
@@ -105,7 +108,7 @@ export function normalizeTimelineWithDiagnostics(input) {
 
   const usedEventIds = new Set();
   const events = inputEvents.map((event, index) => {
-    const normalizedEvent = normalizeEvent(event, mediaById, eventTypes, diagnostics, `$.events[${index}]`);
+    const normalizedEvent = normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, `$.events[${index}]`);
     if (usedEventIds.has(normalizedEvent.id)) {
       const originalId = normalizedEvent.id;
       normalizedEvent.id = crypto.randomUUID();
@@ -129,6 +132,7 @@ export function normalizeTimelineWithDiagnostics(input) {
     title: normalizeTimelineTitle(migratedInput.title, diagnostics),
     updatedAt: normalizeUpdatedAt(migratedInput.updatedAt, diagnostics),
     eventTypes,
+    collections: pruneUnusedCollections(collections, events),
     media: [...usedMediaIds].map((id) => mediaById.get(id)).filter(Boolean),
     events: sortEvents(events)
   };
@@ -192,6 +196,24 @@ export function getEventTitle(event) {
 
 export function getEventTypes(timeline) {
   return normalizeEventTypes(timeline?.eventTypes);
+}
+
+export function getCollections(timeline) {
+  return normalizeCollections(timeline?.collections);
+}
+
+export function createCollection({ title, kind = "collection" }) {
+  const safeTitle = cleanText(title) || "Untitled collection";
+  return normalizeCollection({
+    id: crypto.randomUUID(),
+    kind,
+    title: safeTitle
+  });
+}
+
+export function getEventCollections(timeline, event) {
+  const collectionIds = new Set(normalizeEventCollectionIds(event?.collectionIds, getCollections(timeline)));
+  return getCollections(timeline).filter((collection) => collectionIds.has(collection.id));
 }
 
 export function getEventType(type, timeline) {
@@ -319,7 +341,7 @@ export function createCustomEventType({ label, emoji }) {
   };
 }
 
-function normalizeEvent(event, mediaById, eventTypes, diagnostics, path) {
+function normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, path) {
   if (!event || typeof event !== "object") {
     addDiagnostic(diagnostics, "error", "malformed-event-replaced", "Replaced malformed event with an untitled placeholder event.", path);
     event = {};
@@ -349,8 +371,83 @@ function normalizeEvent(event, mediaById, eventTypes, diagnostics, path) {
     timestamp,
     location: cleanText(event.location),
     images: normalizeEventImages(event.images, mediaById, diagnostics, `${path}.images`),
-    fields: normalizeFields(event.fields, diagnostics, `${path}.fields`)
+    fields: normalizeFields(event.fields, diagnostics, `${path}.fields`),
+    collectionIds: normalizeEventCollectionIds(event.collectionIds, collections, diagnostics, `${path}.collectionIds`)
   };
+}
+
+function normalizeCollections(collections, diagnostics = [], path = "$.collections") {
+  if (collections === undefined) return [];
+  if (!Array.isArray(collections)) {
+    addDiagnostic(diagnostics, "error", "invalid-collections-array", "Ignored collections because they were not an array.", path);
+    return [];
+  }
+
+  const usedIds = new Set();
+  return collections
+    .map((collection, index) => normalizeCollection(collection, diagnostics, `${path}[${index}]`))
+    .filter(Boolean)
+    .map((collection, index) => {
+      if (!usedIds.has(collection.id)) {
+        usedIds.add(collection.id);
+        return collection;
+      }
+      const originalId = collection.id;
+      const id = crypto.randomUUID();
+      usedIds.add(id);
+      addDiagnostic(diagnostics, "error", "duplicate-collection-id", `Duplicate collection id ${originalId}; assigned a new id.`, `${path}[${index}].id`);
+      return {
+        ...collection,
+        id
+      };
+    });
+}
+
+function normalizeCollection(collection, diagnostics = [], path = "$.collections[]") {
+  if (!collection || typeof collection !== "object") {
+    addDiagnostic(diagnostics, "error", "malformed-collection-dropped", "Ignored malformed collection.", path);
+    return null;
+  }
+
+  const id = cleanText(collection.id);
+  const title = cleanText(collection.title || collection.name);
+  if (!id && !title) {
+    addDiagnostic(diagnostics, "error", "invalid-collection-dropped", "Ignored collection without an id or title.", path);
+    return null;
+  }
+  if (!id) {
+    addDiagnostic(diagnostics, "warning", "generated-collection-id", "Collection was missing an id; assigned a new id.", `${path}.id`);
+  }
+
+  return {
+    ...pickUnknown(collection, COLLECTION_KEYS),
+    id: id || crypto.randomUUID(),
+    kind: cleanText(collection.kind) || "collection",
+    title: title || "Untitled collection"
+  };
+}
+
+function normalizeEventCollectionIds(collectionIds, collections = [], diagnostics = [], path = "$.collectionIds") {
+  if (collectionIds === undefined) return [];
+  const input = Array.isArray(collectionIds) ? collectionIds : [collectionIds];
+  if (!Array.isArray(collectionIds)) {
+    addDiagnostic(diagnostics, "warning", "coerced-event-collection-id", "Event collection id was not an array; loaded it as a single collection id.", path);
+  }
+  const collectionIdSet = new Set((collections || []).map((collection) => collection.id));
+  const normalized = unique(input.map(cleanText));
+  return normalized.filter((id, index) => {
+    if (!id) return false;
+    if (collectionIdSet.size > 0 && !collectionIdSet.has(id)) {
+      addDiagnostic(diagnostics, "warning", "unknown-event-collection", `Ignored event collection ${id} because it was not found.`, `${path}[${index}]`);
+      return false;
+    }
+    return true;
+  });
+}
+
+function pruneUnusedCollections(collections, events) {
+  const usedIds = new Set((events || []).flatMap((event) => event.collectionIds || []));
+  return collections.filter((collection) => usedIds.has(collection.id));
 }
 
 function normalizeEventImages(images, mediaById = null, diagnostics = [], path = "$.images") {
@@ -615,6 +712,9 @@ function migrateTimelineInput(input, diagnostics) {
   if (version < 5) {
     migrated = migrateV4ToV5(migrated, diagnostics);
   }
+  if (version < 6) {
+    migrated = migrateV5ToV6(migrated, diagnostics);
+  }
   if (version > TIMELINE_VERSION) {
     addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
   }
@@ -681,6 +781,15 @@ function migrateV4ToV5(input, diagnostics) {
     ...input,
     version: 5,
     eventTypes: Array.isArray(input.eventTypes) ? input.eventTypes : cloneEventTypes(EVENT_TYPES)
+  };
+}
+
+function migrateV5ToV6(input, diagnostics) {
+  addDiagnostic(diagnostics, "warning", "migrated-v5-schema", "Applied version 5 to version 6 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 6,
+    collections: Array.isArray(input.collections) ? input.collections : []
   };
 }
 
@@ -852,6 +961,7 @@ const TIMELINE_KEYS = new Set([
   "title",
   "updatedAt",
   "eventTypes",
+  "collections",
   "events",
   "media"
 ]);
@@ -880,7 +990,15 @@ const EVENT_KEYS = new Set([
   "mediaId",
   "imageLink",
   "images",
-  "fields"
+  "fields",
+  "collectionIds"
+]);
+
+const COLLECTION_KEYS = new Set([
+  "id",
+  "kind",
+  "title",
+  "name"
 ]);
 
 const IMAGE_ITEM_KEYS = new Set([

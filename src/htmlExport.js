@@ -282,6 +282,7 @@ function standaloneRuntime() {
   const timeline = document.getElementById("timeline");
   const events = sortEvents(timelineData.events || []);
   const eventTypes = normalizeEventTypes(timelineData.eventTypes);
+  const collections = normalizeCollections(timelineData.collections);
   const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
   const PLAYER_RENDERERS = {
     simple: renderSimplePlayer,
@@ -325,7 +326,7 @@ function standaloneRuntime() {
 
       const meta = document.createElement("div");
       meta.className = "small";
-      meta.textContent = getEventTypeDisplay(event.type) + (event.location ? " / " + event.location : "");
+      meta.textContent = formatEventMeta(event);
       card.append(meta);
 
       const fieldSummary = makeFieldSummary(event.fields || []);
@@ -391,6 +392,30 @@ function standaloneRuntime() {
       || eventTypes.find((item) => item.value === DEFAULT_EVENT_TYPE)
       || EVENT_TYPES[0];
     return eventType.emoji ? eventType.emoji + " " + eventType.label : eventType.label;
+  }
+
+  function normalizeCollections(input) {
+    if (!Array.isArray(input)) return [];
+    return input
+      .filter((item) => item && typeof item === "object")
+      .map((item) => ({
+        id: String(item.id || "").trim(),
+        title: String(item.title || item.name || "Untitled collection").trim()
+      }))
+      .filter((item) => item.id);
+  }
+
+  function getEventCollections(event) {
+    const collectionIds = new Set(Array.isArray(event.collectionIds) ? event.collectionIds : []);
+    return collections.filter((collection) => collectionIds.has(collection.id));
+  }
+
+  function formatEventMeta(event) {
+    return [
+      getEventTypeDisplay(event.type),
+      ...getEventCollections(event).map((collection) => collection.title),
+      event.location || ""
+    ].filter(Boolean).join(" / ");
   }
 
   function titleFromSlug(value) {

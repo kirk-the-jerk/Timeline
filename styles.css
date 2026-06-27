@@ -580,6 +580,28 @@ select {
   min-width: 0;
 }
 
+.event-collections {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.collection-pill {
+  max-width: 100%;
+  padding: 3px 7px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #eef6ff;
+  color: var(--info);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .event-actions {
   display: flex;
   gap: 8px;

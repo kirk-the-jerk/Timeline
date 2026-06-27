@@ -1,6 +1,7 @@
 import {
   canRenderImageMedia,
   formatDisplayTimestamp,
+  getEventCollections,
   getEventTitle,
   getEventTypeDisplay,
   resolveEventImages
@@ -59,7 +60,11 @@ function renderEventListItem(timeline, event) {
 }
 
 function formatEventMeta(timeline, event) {
-  return `${getEventTypeDisplay(event.type, timeline)}${event.location ? ` / ${event.location}` : ""}`;
+  return [
+    getEventTypeDisplay(event.type, timeline),
+    ...getEventCollections(timeline, event).map((collection) => collection.title),
+    event.location || ""
+  ].filter(Boolean).join(" / ");
 }
 
 function renderEventGallery(timeline, event) {

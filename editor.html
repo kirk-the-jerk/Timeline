@@ -137,6 +137,17 @@
                 <input id="event-location" type="text" placeholder="Vancouver, BC" autocomplete="off">
               </div>
             </details>
+            <details class="optional-section" id="collection-options">
+              <summary>
+                <span>Collection</span>
+                <span class="optional-summary" id="collection-summary">No collection</span>
+              </summary>
+              <div class="field">
+                <label for="event-collection">Collection</label>
+                <input id="event-collection" type="text" list="collection-suggestions" placeholder="Japan 2026" autocomplete="off">
+                <datalist id="collection-suggestions"></datalist>
+              </div>
+            </details>
             <details class="optional-section" id="image-options">
               <summary>
                 <span>Image gallery</span>
@@ -271,6 +282,18 @@
               <option value="map">Map</option>
             </select>
             <div class="small">HTML exports embed the selected player.</div>
+          </div>
+          <div class="field">
+            <label for="export-scope">Export scope</label>
+            <select id="export-scope">
+              <option value="all">All events</option>
+              <option value="event-types">Event types</option>
+              <option value="collection">Collection</option>
+            </select>
+          </div>
+          <div class="field" id="export-collection-field" hidden>
+            <label for="export-collection">Collection</label>
+            <select id="export-collection"></select>
           </div>
           <details class="optional-section export-events-section" id="export-events-options">
             <summary>

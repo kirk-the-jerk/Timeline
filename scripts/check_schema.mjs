@@ -22,6 +22,7 @@ function main() {
   checkFutureVersion();
   checkMalformedRecoverable();
   checkCustomEventTypes();
+  checkCollections();
   console.log("OK schema fixtures");
 }
 
@@ -42,6 +43,7 @@ function checkV1Legacy() {
     "migrated-v2-schema",
     "migrated-v3-schema",
     "migrated-v4-schema",
+    "migrated-v5-schema",
     "default-time",
     "default-time-zone",
     "generated-event-id",
@@ -60,6 +62,7 @@ function checkV2EmbeddedImage() {
     "migrated-v2-schema",
     "migrated-v3-schema",
     "migrated-v4-schema",
+    "migrated-v5-schema",
     "ignored-legacy-event-images"
   ]);
 }
@@ -74,7 +77,7 @@ function checkV4ImageGallery() {
   assert.equal(timeline.events[0].images[0].mediaId, "media-1");
   assert.equal(timeline.events[0].images[1].kind, "link");
   assert.equal(timeline.events[0].images[1].url, "https://example.com/photo.jpg");
-  assertCodesInclude(diagnostics, ["migrated-v4-schema"]);
+  assertCodesInclude(diagnostics, ["migrated-v4-schema", "migrated-v5-schema"]);
 }
 
 function checkFutureVersion() {
@@ -99,6 +102,7 @@ function checkMalformedRecoverable() {
     "ignored-legacy-event-images",
     "migrated-v3-schema",
     "migrated-v4-schema",
+    "migrated-v5-schema",
     "duplicate-event-id",
     "unknown-event-type",
     "non-iso-date",
@@ -149,6 +153,37 @@ function checkCustomEventTypes() {
   assert.equal(timeline.events.find((event) => event.title === "Spoke at JSConf").type, "conference");
   assert.equal(timeline.events.find((event) => event.title === "Unknown type").type, "misc");
   assertCodesInclude(diagnostics, ["unknown-event-type"]);
+}
+
+function checkCollections() {
+  const { timeline } = normalizeTimelineWithDiagnostics({
+    format: "local-timeline-poc",
+    version: TIMELINE_VERSION,
+    title: "Collection timeline",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    collections: [
+      { id: "collection-1", kind: "trip", title: "Japan 2026" },
+      { id: "unused", title: "Unused" }
+    ],
+    events: [
+      {
+        id: "event-1",
+        type: "travel",
+        title: "Flight to Tokyo",
+        timestamp: {
+          date: "2026-04-10",
+          time: "09:00",
+          tz: "UTC"
+        },
+        collectionIds: ["collection-1"]
+      }
+    ]
+  });
+
+  assert.equal(timeline.version, TIMELINE_VERSION);
+  assert.equal(timeline.collections.length, 1);
+  assert.equal(timeline.collections[0].title, "Japan 2026");
+  assert.deepEqual(timeline.events[0].collectionIds, ["collection-1"]);
 }
 
 function normalizeFixture(name) {

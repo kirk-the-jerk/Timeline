@@ -4,6 +4,7 @@ import { downloadStandaloneHtml } from "./htmlExport.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
   canRenderImageMedia,
+  createCollection,
   createCustomField,
   createCustomEventType,
   createEmptyTimeline,
@@ -15,6 +16,8 @@ import {
   formatDisplayDate,
   getAvailableTimeZones,
   getBrowserTimeZone,
+  getCollections,
+  getEventCollections,
   getEventTimeZone,
   getEventTitle,
   getEventTypeEmoji,
@@ -45,6 +48,9 @@ const saveDialogStatus = document.querySelector("#save-dialog-status");
 const exportTimelineTitleInput = document.querySelector("#export-timeline-title");
 const htmlPlayerField = document.querySelector("#html-player-field");
 const htmlPlayerTypeInput = document.querySelector("#html-player-type");
+const exportScopeInput = document.querySelector("#export-scope");
+const exportCollectionField = document.querySelector("#export-collection-field");
+const exportCollectionInput = document.querySelector("#export-collection");
 const exportEventsOptions = document.querySelector("#export-events-options");
 const exportEventsSummary = document.querySelector("#export-events-summary");
 const exportEventTypes = document.querySelector("#export-event-types");
@@ -73,6 +79,10 @@ const tzInput = document.querySelector("#event-tz");
 const locationOptions = document.querySelector("#location-options");
 const locationSummary = document.querySelector("#location-summary");
 const locationInput = document.querySelector("#event-location");
+const collectionOptions = document.querySelector("#collection-options");
+const collectionSummary = document.querySelector("#collection-summary");
+const collectionInput = document.querySelector("#event-collection");
+const collectionSuggestions = document.querySelector("#collection-suggestions");
 const imageOptions = document.querySelector("#image-options");
 const imageSummary = document.querySelector("#image-summary");
 const imageLinkInput = document.querySelector("#event-image-link");
@@ -161,6 +171,8 @@ form.addEventListener("submit", async (event) => {
     }
   }
 
+  const collectionIds = resolveCollectionIds(collectionInput.value);
+
   const savedEvent = createEvent({
     type: typeInput.value,
     title: eventTitleInput.value,
@@ -170,6 +182,8 @@ form.addEventListener("submit", async (event) => {
     location: locationInput.value,
     images: draftImages.map(toEventImage),
     fields: draftFields,
+    collectionIds,
+    collections: getCollections(timeline),
     eventTypes: getEventTypes(timeline)
   });
 
@@ -230,7 +244,10 @@ saveDialog.addEventListener("click", (event) => {
   if (event.target === saveDialog) saveDialog.close();
 });
 
-saveForm.addEventListener("change", updateSaveFormatControls);
+saveForm.addEventListener("change", () => {
+  updateSaveFormatControls();
+  updateExportControls();
+});
 
 exportEventTypes.addEventListener("change", (event) => {
   const checkbox = event.target.closest("[data-export-event-type]");
@@ -277,6 +294,7 @@ customEventTypeLabelInput.addEventListener("keydown", async (event) => {
 timeInput.addEventListener("input", renderOptionalSummaries);
 tzInput.addEventListener("change", renderOptionalSummaries);
 locationInput.addEventListener("input", renderOptionalSummaries);
+collectionInput.addEventListener("input", renderOptionalSummaries);
 imageLinkInput.addEventListener("input", renderOptionalSummaries);
 imageLinkInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter") return;
@@ -466,10 +484,13 @@ async function saveTimelineAs(format) {
 
 function prepareSaveDialog() {
   exportTimelineTitleInput.value = getTimelineTitleValue();
+  exportScopeInput.value = "all";
   exportEventsOptions.open = false;
   exportEventTypeSelection = new Set(getExportableEventTypes().map((eventType) => eventType.value));
   renderExportEventTypeControls();
+  renderExportCollectionControls();
   updateSaveFormatControls();
+  updateExportControls();
 }
 
 function getExportTimelineTitleValue() {
@@ -484,11 +505,67 @@ function updateSaveFormatControls() {
   htmlPlayerField.hidden = !isHtmlSaveFormat(getSelectedSaveFormat());
 }
 
+function updateExportControls() {
+  const scope = getSelectedExportScope();
+  exportEventsOptions.hidden = scope !== "event-types";
+  exportCollectionField.hidden = scope !== "collection";
+
+  if (scope === "event-types") {
+    renderExportEventTypeControls();
+    return;
+  }
+
+  if (scope === "collection") {
+    renderExportCollectionControls();
+    const hasCollection = Boolean(exportCollectionInput.value);
+    saveDialogStatus.textContent = hasCollection ? "" : "No collections are available to export.";
+    saveSubmitButton.disabled = !hasCollection;
+    return;
+  }
+
+  exportEventsSummary.textContent = "All events";
+  saveDialogStatus.textContent = "";
+  saveSubmitButton.disabled = false;
+}
+
 function isHtmlSaveFormat(format) {
   return format === "html-single" || format === "html-images";
 }
 
+function getSelectedExportScope() {
+  return exportScopeInput.value || "all";
+}
+
 function getExportTimeline() {
+  const scope = getSelectedExportScope();
+
+  if (scope === "all") {
+    return {
+      ...timeline,
+      title: getExportTimelineTitleValue()
+    };
+  }
+
+  if (scope === "collection") {
+    const collectionId = exportCollectionInput.value;
+    const collection = getCollections(timeline).find((item) => item.id === collectionId);
+    if (!collection) {
+      saveDialogStatus.textContent = "Select a collection to export.";
+      setStatus("Select a collection to export.", "warning");
+      return null;
+    }
+
+    const events = timeline.events.filter((event) => event.collectionIds?.includes(collectionId));
+    const usedTypes = new Set(events.map((event) => event.type));
+    return {
+      ...timeline,
+      title: getExportTimelineTitleValue(),
+      eventTypes: getEventTypes(timeline).filter((eventType) => usedTypes.has(eventType.value)),
+      collections: [collection],
+      events
+    };
+  }
+
   const selectedTypes = getSelectedExportEventTypes();
   if (selectedTypes.size === 0) {
     saveDialogStatus.textContent = "Select at least one event type to export.";
@@ -520,6 +597,18 @@ function renderExportEventTypeControls() {
   updateExportEventsSummary(eventTypes);
 }
 
+function renderExportCollectionControls() {
+  const collections = getExportableCollections();
+  const currentValue = exportCollectionInput.value;
+  exportCollectionInput.innerHTML = collections.map((collection) => {
+    const count = getCollectionEventCount(collection.id);
+    return `<option value="${escapeHtml(collection.id)}">${escapeHtml(collection.title)} (${count} event${count === 1 ? "" : "s"})</option>`;
+  }).join("");
+  exportCollectionInput.value = collections.some((collection) => collection.id === currentValue)
+    ? currentValue
+    : collections[0]?.id || "";
+}
+
 function updateExportEventsSummary(eventTypes = getExportableEventTypes()) {
   const selectedCount = getSelectedExportEventTypes().size;
   if (selectedCount === eventTypes.length) {
@@ -548,6 +637,14 @@ function getEventTypeCounts() {
     counts.set(event.type, (counts.get(event.type) || 0) + 1);
   }
   return counts;
+}
+
+function getExportableCollections() {
+  return getCollections(timeline).filter((collection) => getCollectionEventCount(collection.id) > 0);
+}
+
+function getCollectionEventCount(collectionId) {
+  return timeline.events.filter((event) => event.collectionIds?.includes(collectionId)).length;
 }
 
 eventList.addEventListener("click", async (event) => {
@@ -617,13 +714,41 @@ function populateHtmlPlayerTypes() {
     .join("");
 }
 
+function renderCollectionSuggestions() {
+  collectionSuggestions.innerHTML = getCollections(timeline)
+    .map((collection) => `<option value="${escapeHtml(collection.title)}"></option>`)
+    .join("");
+}
+
 function formatEventTypeOption(eventType) {
   return eventType.emoji ? `${eventType.emoji} ${eventType.label}` : eventType.label;
+}
+
+function resolveCollectionIds(value) {
+  const titles = uniqueText(value.split(",").map((title) => title.trim()));
+  if (titles.length === 0) return [];
+
+  const collections = [...getCollections(timeline)];
+  const ids = [];
+  for (const title of titles) {
+    const existing = collections.find((collection) => collection.title.toLowerCase() === title.toLowerCase());
+    if (existing) {
+      ids.push(existing.id);
+      continue;
+    }
+
+    const collection = createCollection({ title });
+    collections.push(collection);
+    ids.push(collection.id);
+  }
+  timeline.collections = collections;
+  return ids;
 }
 
 function render() {
   renderTimelineTitle();
   populateEventTypes();
+  renderCollectionSuggestions();
   eventList.innerHTML = "";
 
   if (timeline.events.length === 0) {
@@ -641,6 +766,7 @@ function render() {
       <div class="event-summary">
         <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp))}</div>
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
+        ${renderEventCollections(event)}
       </div>
       ${renderEventThumbnail(event)}
       <div class="event-actions">
@@ -663,6 +789,16 @@ function render() {
     `;
     eventList.append(row);
   }
+}
+
+function renderEventCollections(event) {
+  const collections = getEventCollections(timeline, event);
+  if (collections.length === 0) return "";
+  return `
+    <div class="event-collections">
+      ${collections.map((collection) => `<span class="collection-pill">${escapeHtml(collection.title)}</span>`).join("")}
+    </div>
+  `;
 }
 
 function formatEditorEventTimestamp(timestamp) {
@@ -788,11 +924,13 @@ function renderImageSourceIcon(kind) {
 function renderOptionalSummaries() {
   const time = timeInput.value;
   const location = locationInput.value.trim();
+  const collection = collectionInput.value.trim();
   const imageLink = imageLinkInput.value.trim();
   const populatedFieldCount = draftFields.filter((field) => field.value).length;
 
   datetimeSummary.textContent = time ? `${time} ${tzInput.value}` : "No time set";
   locationSummary.textContent = location || "No location";
+  collectionSummary.textContent = collection || "No collection";
   imageSummary.textContent = draftImages.length > 0
     ? `${draftImages.length} image${draftImages.length === 1 ? "" : "s"}`
     : imageLink
@@ -814,6 +952,7 @@ function resetEventForm() {
   timeInput.value = "";
   tzInput.value = lastTimeZone;
   locationInput.value = "";
+  collectionInput.value = "";
   imageLinkInput.value = "";
   imageFileInput.value = "";
   draftImages = [];
@@ -853,6 +992,7 @@ function closeOptionalSections() {
   eventTypeOptions.open = false;
   datetimeOptions.open = false;
   locationOptions.open = false;
+  collectionOptions.open = false;
   imageOptions.open = false;
   fieldsOptions.open = false;
 }
@@ -860,6 +1000,7 @@ function closeOptionalSections() {
 function openPopulatedOptionalSections() {
   datetimeOptions.open = Boolean(timeInput.value);
   locationOptions.open = Boolean(locationInput.value.trim());
+  collectionOptions.open = Boolean(collectionInput.value.trim());
   imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImages.length > 0);
   fieldsOptions.open = draftFields.length > 0;
 }
@@ -882,6 +1023,7 @@ function startEditingEvent(eventId) {
   timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";
   tzInput.value = getEventTimeZone(event) || lastTimeZone;
   locationInput.value = event.location || "";
+  collectionInput.value = getEventCollections(timeline, event).map((collection) => collection.title).join(", ");
   imageLinkInput.value = "";
   imageFileInput.value = "";
   draftImages = resolveEventImages(timeline, event).map(toDraftImage);
@@ -1109,4 +1251,14 @@ function isSafeHttpUrl(url) {
   } catch {
     return false;
   }
+}
+
+function uniqueText(values) {
+  const used = new Set();
+  return values.filter((value) => {
+    const key = value.toLowerCase();
+    if (!key || used.has(key)) return false;
+    used.add(key);
+    return true;
+  });
 }
