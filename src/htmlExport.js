@@ -270,9 +270,13 @@ function standaloneRuntime() {
   const EVENT_TYPES = [
     { value: "misc", label: "Misc", emoji: "📌" },
     { value: "life", label: "Life", emoji: "✨" },
-    { value: "move", label: "Move", emoji: "📦" },
+    { value: "family", label: "Family", emoji: "👨‍👩‍👧‍👦" },
+    { value: "friends", label: "Friends", emoji: "🤝" },
+    { value: "health", label: "Health", emoji: "🩺" },
+    { value: "home", label: "Home", emoji: "🏠" },
+    { value: "school", label: "School", emoji: "🎓" },
     { value: "travel", label: "Travel", emoji: "✈️" },
-    { value: "job", label: "Job", emoji: "💼" }
+    { value: "work", label: "Work", emoji: "💼" }
   ];
 
   const timelineData = JSON.parse(document.getElementById("timeline-data").textContent);

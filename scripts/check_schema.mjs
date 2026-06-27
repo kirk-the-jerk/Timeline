@@ -23,6 +23,8 @@ function main() {
   checkMalformedRecoverable();
   checkCustomEventTypes();
   checkCollections();
+  checkLegacyEventTypeAliases();
+  checkLegacyJobEventTypeAlias();
   console.log("OK schema fixtures");
 }
 
@@ -44,6 +46,8 @@ function checkV1Legacy() {
     "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
+    "migrated-v6-schema",
+    "migrated-v7-schema",
     "default-time",
     "default-time-zone",
     "generated-event-id",
@@ -63,6 +67,8 @@ function checkV2EmbeddedImage() {
     "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
+    "migrated-v6-schema",
+    "migrated-v7-schema",
     "ignored-legacy-event-images"
   ]);
 }
@@ -77,7 +83,7 @@ function checkV4ImageGallery() {
   assert.equal(timeline.events[0].images[0].mediaId, "media-1");
   assert.equal(timeline.events[0].images[1].kind, "link");
   assert.equal(timeline.events[0].images[1].url, "https://example.com/photo.jpg");
-  assertCodesInclude(diagnostics, ["migrated-v4-schema", "migrated-v5-schema"]);
+  assertCodesInclude(diagnostics, ["migrated-v4-schema", "migrated-v5-schema", "migrated-v6-schema", "migrated-v7-schema"]);
 }
 
 function checkFutureVersion() {
@@ -103,6 +109,8 @@ function checkMalformedRecoverable() {
     "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
+    "migrated-v6-schema",
+    "migrated-v7-schema",
     "duplicate-event-id",
     "unknown-event-type",
     "non-iso-date",
@@ -184,6 +192,81 @@ function checkCollections() {
   assert.equal(timeline.collections.length, 1);
   assert.equal(timeline.collections[0].title, "Japan 2026");
   assert.deepEqual(timeline.events[0].collectionIds, ["collection-1"]);
+}
+
+function checkLegacyEventTypeAliases() {
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics({
+    format: "local-timeline-poc",
+    version: 6,
+    title: "Legacy event types",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    eventTypes: [
+      { value: "move", label: "Move", emoji: "📦" },
+      { value: "education", label: "Education", emoji: "🎓" }
+    ],
+    events: [
+      {
+        id: "event-1",
+        type: "move",
+        title: "Moved apartments",
+        timestamp: {
+          date: "2026-05-01",
+          time: "09:00",
+          tz: "UTC"
+        }
+      },
+      {
+        id: "event-2",
+        type: "education",
+        title: "Started a class",
+        timestamp: {
+          date: "2026-05-02",
+          time: "09:00",
+          tz: "UTC"
+        }
+      }
+    ]
+  });
+
+  assert.equal(timeline.version, TIMELINE_VERSION);
+  assert.ok(timeline.eventTypes.some((eventType) => eventType.value === "home" && eventType.label === "Home"));
+  assert.ok(timeline.eventTypes.some((eventType) => eventType.value === "school" && eventType.label === "School"));
+  assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "move"));
+  assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "education"));
+  assert.equal(timeline.events.find((event) => event.title === "Moved apartments").type, "home");
+  assert.equal(timeline.events.find((event) => event.title === "Started a class").type, "school");
+  assertCodesInclude(diagnostics, ["migrated-v6-schema", "migrated-v7-schema"]);
+}
+
+function checkLegacyJobEventTypeAlias() {
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics({
+    format: "local-timeline-poc",
+    version: 7,
+    title: "Legacy job event type",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    eventTypes: [
+      { value: "job", label: "Job", emoji: "💼" }
+    ],
+    events: [
+      {
+        id: "event-1",
+        type: "job",
+        title: "Started a new role",
+        timestamp: {
+          date: "2026-05-01",
+          time: "09:00",
+          tz: "UTC"
+        }
+      }
+    ]
+  });
+
+  assert.equal(timeline.version, TIMELINE_VERSION);
+  assert.ok(timeline.eventTypes.some((eventType) => eventType.value === "work" && eventType.label === "Work"));
+  assert.ok(timeline.eventTypes.some((eventType) => eventType.value === "health" && eventType.label === "Health"));
+  assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "job"));
+  assert.equal(timeline.events[0].type, "work");
+  assertCodesInclude(diagnostics, ["migrated-v7-schema"]);
 }
 
 function normalizeFixture(name) {

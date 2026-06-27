@@ -1,14 +1,27 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 6;
+export const TIMELINE_VERSION = 8;
 export const DEFAULT_EVENT_TYPE = "misc";
 
 export const EVENT_TYPES = [
   { value: "misc", label: "Misc", emoji: "📌" },
   { value: "life", label: "Life", emoji: "✨" },
-  { value: "move", label: "Move", emoji: "📦" },
+  { value: "family", label: "Family", emoji: "👨‍👩‍👧‍👦" },
+  { value: "friends", label: "Friends", emoji: "🤝" },
+  { value: "health", label: "Health", emoji: "🩺" },
+  { value: "home", label: "Home", emoji: "🏠" },
+  { value: "school", label: "School", emoji: "🎓" },
   { value: "travel", label: "Travel", emoji: "✈️" },
-  { value: "job", label: "Job", emoji: "💼" }
+  { value: "work", label: "Work", emoji: "💼" }
 ];
+
+const V7_EVENT_TYPE_ALIASES = {
+  education: "school",
+  move: "home"
+};
+
+const V8_EVENT_TYPE_ALIASES = {
+  job: "work"
+};
 
 export const FIELD_PRESETS = [
   { key: "summary", label: "Summary", type: "text" },
@@ -715,6 +728,12 @@ function migrateTimelineInput(input, diagnostics) {
   if (version < 6) {
     migrated = migrateV5ToV6(migrated, diagnostics);
   }
+  if (version < 7) {
+    migrated = migrateV6ToV7(migrated, diagnostics);
+  }
+  if (version < 8) {
+    migrated = migrateV7ToV8(migrated, diagnostics);
+  }
   if (version > TIMELINE_VERSION) {
     addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
   }
@@ -791,6 +810,52 @@ function migrateV5ToV6(input, diagnostics) {
     version: 6,
     collections: Array.isArray(input.collections) ? input.collections : []
   };
+}
+
+function migrateV6ToV7(input, diagnostics) {
+  addDiagnostic(diagnostics, "warning", "migrated-v6-schema", "Applied version 6 to version 7 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 7,
+    eventTypes: migrateLegacyEventTypes(input.eventTypes, V7_EVENT_TYPE_ALIASES),
+    events: migrateLegacyEventEventTypes(input.events, V7_EVENT_TYPE_ALIASES)
+  };
+}
+
+function migrateV7ToV8(input, diagnostics) {
+  addDiagnostic(diagnostics, "warning", "migrated-v7-schema", "Applied version 7 to version 8 timeline migration.", "$.version");
+  return {
+    ...input,
+    version: 8,
+    eventTypes: migrateLegacyEventTypes(input.eventTypes, V8_EVENT_TYPE_ALIASES),
+    events: migrateLegacyEventEventTypes(input.events, V8_EVENT_TYPE_ALIASES)
+  };
+}
+
+function migrateLegacyEventTypes(eventTypes, aliases) {
+  if (!Array.isArray(eventTypes)) return eventTypes;
+  return eventTypes.map((eventType) => {
+    if (!eventType || typeof eventType !== "object") return eventType;
+    const legacyValue = cleanText(eventType.value || eventType.key).toLowerCase();
+    const nextValue = aliases[legacyValue];
+    if (!nextValue) return eventType;
+    const builtin = EVENT_TYPES.find((type) => type.value === nextValue);
+    return {
+      ...eventType,
+      value: nextValue,
+      label: builtin?.label || eventType.label,
+      emoji: builtin?.emoji || eventType.emoji
+    };
+  });
+}
+
+function migrateLegacyEventEventTypes(events, aliases) {
+  if (!Array.isArray(events)) return events;
+  return events.map((event) => {
+    if (!event || typeof event !== "object") return event;
+    const nextType = aliases[cleanText(event.type).toLowerCase()];
+    return nextType ? { ...event, type: nextType } : event;
+  });
 }
 
 function getEventInputs(input, diagnostics) {

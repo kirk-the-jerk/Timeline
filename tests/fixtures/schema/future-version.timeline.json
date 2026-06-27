@@ -10,7 +10,7 @@
   "events": [
     {
       "id": "future-event",
-      "type": "job",
+      "type": "work",
       "title": "Future event",
       "timestamp": {
         "date": "2022-05-06",

@@ -65,15 +65,19 @@ In IndexedDB, the active draft stores the timeline document and media records se
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 5,
+  "version": 8,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "eventTypes": [
     { "value": "misc", "label": "Misc", "emoji": "📌" },
     { "value": "life", "label": "Life", "emoji": "✨" },
-    { "value": "move", "label": "Move", "emoji": "📦" },
+    { "value": "family", "label": "Family", "emoji": "👨‍👩‍👧‍👦" },
+    { "value": "friends", "label": "Friends", "emoji": "🤝" },
+    { "value": "health", "label": "Health", "emoji": "🩺" },
+    { "value": "home", "label": "Home", "emoji": "🏠" },
+    { "value": "school", "label": "School", "emoji": "🎓" },
     { "value": "travel", "label": "Travel", "emoji": "✈️" },
-    { "value": "job", "label": "Job", "emoji": "💼" },
+    { "value": "work", "label": "Work", "emoji": "💼" },
     { "value": "conference", "label": "Conference", "emoji": "🎤", "custom": true }
   ],
   "media": [
@@ -91,7 +95,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
   "events": [
     {
       "id": "uuid",
-      "type": "job",
+      "type": "work",
       "title": "Started a new project",
       "timestamp": {
         "date": "2026-06-25",
