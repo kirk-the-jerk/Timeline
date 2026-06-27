@@ -342,10 +342,7 @@ button:disabled {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
+  display: block;
 }
 
 .player-workspace {
@@ -359,6 +356,18 @@ button:disabled {
 .stack {
   display: grid;
   gap: 14px;
+}
+
+.events-panel {
+  min-height: 420px;
+}
+
+.event-list-header {
+  display: block;
+}
+
+.event-list-header h2 {
+  margin: 0 0 10px;
 }
 
 .field {
@@ -493,11 +502,80 @@ select {
   margin-top: 14px;
 }
 
+.event-editor-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  justify-items: end;
+}
+
+.event-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(34, 34, 34, 0.34);
+  padding: 0;
+  cursor: default;
+}
+
+.event-editor-panel {
+  position: relative;
+  z-index: 1;
+  width: min(460px, 100vw);
+  height: 100vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 42px rgba(34, 34, 34, 0.2);
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) 18px;
+}
+
+.event-editor-header {
+  position: sticky;
+  top: -1px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -18px -18px 0;
+  padding: 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.event-editor-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.floating-add-button {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 18;
+  width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: 0 14px 32px rgba(34, 34, 34, 0.22);
+}
+
+body.event-editor-open {
+  overflow: hidden;
+}
+
 .toast-region {
   position: fixed;
   right: max(16px, env(safe-area-inset-right));
   bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: 20;
+  z-index: 40;
   display: grid;
   gap: 10px;
   width: min(360px, calc(100vw - 32px));
@@ -1092,6 +1170,25 @@ select {
 
   .hero {
     min-height: auto;
+  }
+
+  .event-editor-shell {
+    align-items: end;
+    justify-items: stretch;
+  }
+
+  .event-editor-panel {
+    width: 100%;
+    height: min(88vh, 760px);
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -18px 42px rgba(34, 34, 34, 0.2);
+  }
+
+  .floating-add-button {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
   }
 
   .product-visual {

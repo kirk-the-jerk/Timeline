@@ -99,6 +99,11 @@ const addCustomFieldButton = document.querySelector("#add-custom-field");
 const customFields = document.querySelector("#custom-fields");
 const submitEventButton = document.querySelector("#submit-event");
 const cancelEditButton = document.querySelector("#cancel-edit");
+const floatingAddEventButton = document.querySelector("#floating-add-event");
+const eventEditorShell = document.querySelector("#event-editor-shell");
+const eventEditorPanel = document.querySelector(".event-editor-panel");
+const eventEditorBackdrop = document.querySelector("#event-editor-backdrop");
+const closeEventEditorButton = document.querySelector("#close-event-editor");
 const eventList = document.querySelector("#event-list");
 const toastRegion = document.querySelector("#toast-region");
 
@@ -109,6 +114,7 @@ let lastTimeZone = getBrowserTimeZone();
 let editingEventId = null;
 let isEditingTitle = false;
 let exportEventTypeSelection = new Set();
+let eventEditorReturnFocus = null;
 
 init();
 
@@ -202,6 +208,11 @@ form.addEventListener("submit", async (event) => {
   if (previousEvent) removeUnusedMediaForEvent(previousEvent);
   resetEventForm();
   await persist(previousEvent ? "Event updated." : "Event added.");
+  if (previousEvent) {
+    closeEventEditor({ reset: false, restoreFocus: false });
+    return;
+  }
+  openEventEditor({ focus: false });
   eventTitleInput.focus();
 });
 
@@ -279,6 +290,18 @@ saveForm.addEventListener("submit", (event) => {
 
 clearTimelineButton.addEventListener("click", async () => {
   await clearTimelineDraft();
+});
+
+floatingAddEventButton.addEventListener("click", () => {
+  startAddingEvent();
+});
+
+closeEventEditorButton.addEventListener("click", () => {
+  closeEventEditor();
+});
+
+eventEditorBackdrop.addEventListener("click", () => {
+  closeEventEditor();
 });
 
 addCustomEventTypeButton.addEventListener("click", async () => {
@@ -398,6 +421,8 @@ imagePreview.addEventListener("click", (event) => {
 });
 
 document.addEventListener("paste", async (event) => {
+  if (!isEventEditorOpen()) return;
+
   const file = getImageFileFromClipboard(event.clipboardData);
   if (file) {
     await addDraftImagesFromFiles([file]);
@@ -406,6 +431,12 @@ document.addEventListener("paste", async (event) => {
 
   const text = event.clipboardData?.getData("text/plain") || "";
   if (isSafeHttpUrl(text)) addDraftImageLink(text);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !isEventEditorOpen()) return;
+  event.preventDefault();
+  closeEventEditor();
 });
 
 async function clearTimelineDraft() {
@@ -659,10 +690,50 @@ eventList.addEventListener("click", async (event) => {
   const deletedEvent = timeline.events.find((item) => item.id === deleteButton.dataset.deleteId);
   timeline.events = timeline.events.filter((item) => item.id !== deleteButton.dataset.deleteId);
   removeUnusedMediaForEvent(deletedEvent);
-  if (editingEventId === deletedEvent?.id) resetEventForm();
+  if (editingEventId === deletedEvent?.id) {
+    resetEventForm();
+    closeEventEditor({ reset: false, restoreFocus: false });
+  }
   lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
   await persist("Event deleted.");
 });
+
+function startAddingEvent() {
+  resetEventForm();
+  render();
+  openEventEditor();
+}
+
+function openEventEditor({ focus = true } = {}) {
+  if (!isEventEditorOpen()) {
+    eventEditorReturnFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  }
+  eventEditorShell.hidden = false;
+  document.body.classList.add("event-editor-open");
+  floatingAddEventButton.setAttribute("aria-expanded", "true");
+  eventEditorPanel.scrollTop = 0;
+  if (focus) eventTitleInput.focus();
+}
+
+function closeEventEditor({ reset = true, restoreFocus = true } = {}) {
+  if (reset) {
+    resetEventForm();
+    render();
+  }
+  eventEditorShell.hidden = true;
+  document.body.classList.remove("event-editor-open");
+  floatingAddEventButton.setAttribute("aria-expanded", "false");
+  if (restoreFocus && eventEditorReturnFocus && document.contains(eventEditorReturnFocus)) {
+    eventEditorReturnFocus.focus();
+  }
+  eventEditorReturnFocus = null;
+}
+
+function isEventEditorOpen() {
+  return !eventEditorShell.hidden;
+}
 
 async function persist(message, level = "info") {
   timeline.title = getTimelineTitleValue();
@@ -1033,6 +1104,8 @@ function startEditingEvent(eventId) {
   renderImagePreview();
   renderDraftFields();
   openPopulatedOptionalSections();
+  render();
+  openEventEditor({ focus: false });
   eventTitleInput.focus();
   setStatus("Editing event. Save changes or cancel to return to adding events.");
 }

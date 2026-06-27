@@ -78,9 +78,31 @@
       </header>
 
       <section class="workspace">
-        <aside class="stack">
-          <form class="panel stack" id="timeline-form">
+        <section class="panel events-panel">
+          <div class="event-list-header">
+            <div>
+              <h2>Current events</h2>
+              <p>Changes are saved temporarily in your browser. Use SAVE button above to save permanently!</p>
+            </div>
+          </div>
+          <div class="event-list" id="event-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <div class="event-editor-shell" id="event-editor-shell" hidden>
+      <button class="event-editor-backdrop" type="button" id="event-editor-backdrop" aria-label="Close event editor"></button>
+      <aside class="event-editor-panel" role="dialog" aria-modal="true" aria-labelledby="event-form-title">
+        <form class="stack" id="timeline-form">
+          <div class="event-editor-header">
             <h1 id="event-form-title">Add event</h1>
+            <button class="icon-button" type="button" id="close-event-editor" aria-label="Close event editor" title="Close">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
             <div class="field">
               <label for="event-type">Event type</label>
               <select id="event-type"></select>
@@ -209,15 +231,15 @@
               <button type="button" id="cancel-edit" hidden>Cancel edit</button>
             </div>
           </form>
-        </aside>
+      </aside>
+    </div>
 
-        <section class="panel">
-          <h2>Current events</h2>
-          <p>Changes are saved temporarily in your browser. Use SAVE button above to save permanently!</p>
-          <div class="event-list" id="event-list"></div>
-        </section>
-      </section>
-    </main>
+    <button class="floating-add-button primary" type="button" id="floating-add-event" aria-controls="event-editor-shell" aria-expanded="false" aria-label="Add event" title="Add event">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 5v14"></path>
+        <path d="M5 12h14"></path>
+      </svg>
+    </button>
 
     <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
 
