@@ -210,7 +210,7 @@ form.addEventListener("submit", async (event) => {
     ? sortEvents(timeline.events.map((item) => item.id === previousEvent.id ? nextEvent : item))
     : sortEvents([...timeline.events, nextEvent]);
   if (previousEvent) removeUnusedMediaForEvent(previousEvent);
-  resetEventForm();
+  resetEventForm({ preserveEvent: previousEvent ? null : nextEvent });
   await persist(previousEvent ? "Event updated." : "Event added.");
   if (previousEvent) {
     closeEventEditor({ reset: false, restoreFocus: false });
@@ -1070,23 +1070,26 @@ function renderOptionalSummaries() {
     : `${draftFields.length} field${draftFields.length === 1 ? "" : "s"}${populatedFieldCount > 0 ? `, ${populatedFieldCount} filled` : ""}`;
 }
 
-function resetEventForm() {
+function resetEventForm({ preserveEvent = null } = {}) {
   editingEventId = null;
   formTitle.textContent = "Add event";
   submitEventButton.textContent = "Add event";
   cancelEditButton.hidden = true;
-  populateEventTypes(DEFAULT_EVENT_TYPE);
+  populateEventTypes(preserveEvent?.type || DEFAULT_EVENT_TYPE);
   eventTitleInput.value = "";
-  dateInput.value = new Date().toISOString().slice(0, 10);
-  timeInput.value = "";
-  tzInput.value = lastTimeZone;
-  locationInput.value = "";
-  collectionInput.value = "";
+  dateInput.value = preserveEvent?.timestamp?.date || new Date().toISOString().slice(0, 10);
+  timeInput.value = preserveEvent?.timestamp?.time === "00:00" ? "" : preserveEvent?.timestamp?.time || "";
+  tzInput.value = getEventTimeZone(preserveEvent) || lastTimeZone;
+  locationInput.value = preserveEvent?.location || "";
+  collectionInput.value = preserveEvent
+    ? getEventCollections(timeline, preserveEvent).map((collection) => collection.title).join(", ")
+    : "";
   imageLinkInput.value = "";
   imageFileInput.value = "";
   draftImages = [];
   draftFields = [];
   closeOptionalSections();
+  openPopulatedOptionalSections();
   renderImagePreview();
   renderDraftFields();
 }
