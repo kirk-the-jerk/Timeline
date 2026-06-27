@@ -23,6 +23,11 @@ const V8_EVENT_TYPE_ALIASES = {
   job: "work"
 };
 
+const EVENT_TYPE_ALIASES = {
+  ...V7_EVENT_TYPE_ALIASES,
+  ...V8_EVENT_TYPE_ALIASES
+};
+
 export const FIELD_PRESETS = [
   { key: "summary", label: "Summary", type: "text" },
   { key: "people", label: "People", type: "text" },
@@ -646,7 +651,8 @@ function createField(field) {
 }
 
 function normalizeEventType(type, eventTypes = EVENT_TYPES, diagnostics = [], path = "$.type") {
-  const safeType = cleanText(type).toLowerCase();
+  const rawType = cleanText(type).toLowerCase();
+  const safeType = EVENT_TYPE_ALIASES[rawType] || rawType;
   if (!safeType) {
     addDiagnostic(diagnostics, "warning", "default-event-type", "Event was missing type; defaulted to misc.", path);
     return DEFAULT_EVENT_TYPE;
@@ -683,7 +689,8 @@ function normalizeEventTypes(eventTypes, diagnostics = [], path = "$.eventTypes"
     }
 
     const label = cleanText(eventType.label || eventType.name);
-    const value = cleanText(eventType.value || eventType.key).toLowerCase() || slugify(label);
+    const rawValue = cleanText(eventType.value || eventType.key).toLowerCase() || slugify(label);
+    const value = EVENT_TYPE_ALIASES[rawValue] || rawValue;
     if (!isEventTypeValue(value)) {
       addDiagnostic(diagnostics, "warning", "invalid-event-type-definition", `Ignored event type ${value || "(missing)"} because its value was not a valid slug.`, `${path}[${index}].value`);
       return;

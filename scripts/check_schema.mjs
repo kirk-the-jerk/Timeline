@@ -25,6 +25,7 @@ function main() {
   checkCollections();
   checkLegacyEventTypeAliases();
   checkLegacyJobEventTypeAlias();
+  checkCurrentDraftStaleEventTypeAliases();
   console.log("OK schema fixtures");
 }
 
@@ -267,6 +268,46 @@ function checkLegacyJobEventTypeAlias() {
   assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "job"));
   assert.equal(timeline.events[0].type, "work");
   assertCodesInclude(diagnostics, ["migrated-v7-schema"]);
+}
+
+function checkCurrentDraftStaleEventTypeAliases() {
+  const { timeline } = normalizeTimelineWithDiagnostics({
+    format: "local-timeline-poc",
+    version: TIMELINE_VERSION,
+    title: "Current stale aliases",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    eventTypes: [
+      { value: "move", label: "Move", emoji: "📦" },
+      { value: "job", label: "Job", emoji: "💼" }
+    ],
+    events: [
+      {
+        id: "event-1",
+        type: "move",
+        title: "Moved apartments",
+        timestamp: {
+          date: "2026-05-01",
+          time: "09:00",
+          tz: "UTC"
+        }
+      },
+      {
+        id: "event-2",
+        type: "job",
+        title: "Started a new role",
+        timestamp: {
+          date: "2026-05-02",
+          time: "09:00",
+          tz: "UTC"
+        }
+      }
+    ]
+  });
+
+  assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "move"));
+  assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "job"));
+  assert.equal(timeline.events.find((event) => event.title === "Moved apartments").type, "home");
+  assert.equal(timeline.events.find((event) => event.title === "Started a new role").type, "work");
 }
 
 function normalizeFixture(name) {
