@@ -49,11 +49,14 @@ const exportTimelineTitleInput = document.querySelector("#export-timeline-title"
 const htmlPlayerField = document.querySelector("#html-player-field");
 const htmlPlayerTypeInput = document.querySelector("#html-player-type");
 const exportScopeInput = document.querySelector("#export-scope");
-const exportCollectionField = document.querySelector("#export-collection-field");
-const exportCollectionInput = document.querySelector("#export-collection");
+const exportCollectionsOptions = document.querySelector("#export-collections-options");
+const exportCollectionsSummary = document.querySelector("#export-collections-summary");
+const exportCollections = document.querySelector("#export-collections");
 const exportEventsOptions = document.querySelector("#export-events-options");
 const exportEventsSummary = document.querySelector("#export-events-summary");
 const exportEventTypes = document.querySelector("#export-event-types");
+const selectAllExportCollectionsButton = document.querySelector("#select-all-export-collections");
+const clearExportCollectionsButton = document.querySelector("#clear-export-collections");
 const selectAllExportEventsButton = document.querySelector("#select-all-export-events");
 const clearExportEventsButton = document.querySelector("#clear-export-events");
 const saveSubmitButton = document.querySelector("#save-submit");
@@ -114,6 +117,7 @@ let lastTimeZone = getBrowserTimeZone();
 let editingEventId = null;
 let isEditingTitle = false;
 let exportEventTypeSelection = new Set();
+let exportCollectionSelection = new Set();
 let eventEditorReturnFocus = null;
 
 init();
@@ -269,6 +273,27 @@ exportEventTypes.addEventListener("change", (event) => {
     exportEventTypeSelection.delete(checkbox.value);
   }
   renderExportEventTypeControls();
+});
+
+exportCollections.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-export-collection]");
+  if (!checkbox) return;
+  if (checkbox.checked) {
+    exportCollectionSelection.add(checkbox.value);
+  } else {
+    exportCollectionSelection.delete(checkbox.value);
+  }
+  renderExportCollectionControls();
+});
+
+selectAllExportCollectionsButton.addEventListener("click", () => {
+  exportCollectionSelection = new Set(getExportableCollections().map((collection) => collection.id));
+  renderExportCollectionControls();
+});
+
+clearExportCollectionsButton.addEventListener("click", () => {
+  exportCollectionSelection = new Set();
+  renderExportCollectionControls();
 });
 
 selectAllExportEventsButton.addEventListener("click", () => {
@@ -517,7 +542,9 @@ function prepareSaveDialog() {
   exportTimelineTitleInput.value = getTimelineTitleValue();
   exportScopeInput.value = "all";
   exportEventsOptions.open = false;
+  exportCollectionsOptions.open = false;
   exportEventTypeSelection = new Set(getExportableEventTypes().map((eventType) => eventType.value));
+  exportCollectionSelection = new Set(getExportableCollections().map((collection) => collection.id));
   renderExportEventTypeControls();
   renderExportCollectionControls();
   updateSaveFormatControls();
@@ -539,7 +566,7 @@ function updateSaveFormatControls() {
 function updateExportControls() {
   const scope = getSelectedExportScope();
   exportEventsOptions.hidden = scope !== "event-types";
-  exportCollectionField.hidden = scope !== "collection";
+  exportCollectionsOptions.hidden = scope !== "collection";
 
   if (scope === "event-types") {
     renderExportEventTypeControls();
@@ -548,13 +575,11 @@ function updateExportControls() {
 
   if (scope === "collection") {
     renderExportCollectionControls();
-    const hasCollection = Boolean(exportCollectionInput.value);
-    saveDialogStatus.textContent = hasCollection ? "" : "No collections are available to export.";
-    saveSubmitButton.disabled = !hasCollection;
     return;
   }
 
   exportEventsSummary.textContent = "All events";
+  exportCollectionsSummary.textContent = "All collections";
   saveDialogStatus.textContent = "";
   saveSubmitButton.disabled = false;
 }
@@ -578,21 +603,25 @@ function getExportTimeline() {
   }
 
   if (scope === "collection") {
-    const collectionId = exportCollectionInput.value;
-    const collection = getCollections(timeline).find((item) => item.id === collectionId);
-    if (!collection) {
-      saveDialogStatus.textContent = "Select a collection to export.";
-      setStatus("Select a collection to export.", "warning");
+    const selectedCollectionIds = getSelectedExportCollections();
+    if (selectedCollectionIds.size === 0) {
+      saveDialogStatus.textContent = "Select at least one collection to export.";
+      setStatus("Select at least one collection to export.", "warning");
       return null;
     }
 
-    const events = timeline.events.filter((event) => event.collectionIds?.includes(collectionId));
+    const events = timeline.events
+      .filter((event) => event.collectionIds?.some((id) => selectedCollectionIds.has(id)))
+      .map((event) => ({
+        ...event,
+        collectionIds: (event.collectionIds || []).filter((id) => selectedCollectionIds.has(id))
+      }));
     const usedTypes = new Set(events.map((event) => event.type));
     return {
       ...timeline,
       title: getExportTimelineTitleValue(),
       eventTypes: getEventTypes(timeline).filter((eventType) => usedTypes.has(eventType.value)),
-      collections: [collection],
+      collections: getCollections(timeline).filter((collection) => selectedCollectionIds.has(collection.id)),
       events
     };
   }
@@ -630,14 +659,17 @@ function renderExportEventTypeControls() {
 
 function renderExportCollectionControls() {
   const collections = getExportableCollections();
-  const currentValue = exportCollectionInput.value;
-  exportCollectionInput.innerHTML = collections.map((collection) => {
+  exportCollections.innerHTML = collections.map((collection) => {
     const count = getCollectionEventCount(collection.id);
-    return `<option value="${escapeHtml(collection.id)}">${escapeHtml(collection.title)} (${count} event${count === 1 ? "" : "s"})</option>`;
+    return `
+      <label class="export-collection">
+        <input type="checkbox" value="${escapeHtml(collection.id)}" data-export-collection ${exportCollectionSelection.has(collection.id) ? "checked" : ""}>
+        <span>${escapeHtml(collection.title)}</span>
+        <span class="small">${count} event${count === 1 ? "" : "s"}</span>
+      </label>
+    `;
   }).join("");
-  exportCollectionInput.value = collections.some((collection) => collection.id === currentValue)
-    ? currentValue
-    : collections[0]?.id || "";
+  updateExportCollectionsSummary(collections);
 }
 
 function updateExportEventsSummary(eventTypes = getExportableEventTypes()) {
@@ -656,6 +688,32 @@ function updateExportEventsSummary(eventTypes = getExportableEventTypes()) {
 function getSelectedExportEventTypes() {
   const eventTypeValues = new Set(getExportableEventTypes().map((eventType) => eventType.value));
   return new Set([...exportEventTypeSelection].filter((value) => eventTypeValues.has(value)));
+}
+
+function updateExportCollectionsSummary(collections = getExportableCollections()) {
+  const selectedCount = getSelectedExportCollections().size;
+  if (collections.length === 0) {
+    exportCollectionsSummary.textContent = "No collections";
+    saveDialogStatus.textContent = "No collections are available to export.";
+    saveSubmitButton.disabled = true;
+  } else if (selectedCount === collections.length) {
+    exportCollectionsSummary.textContent = "All collections";
+    saveDialogStatus.textContent = "";
+    saveSubmitButton.disabled = false;
+  } else if (selectedCount === 0) {
+    exportCollectionsSummary.textContent = "No collections selected";
+    saveDialogStatus.textContent = "Select at least one collection to export.";
+    saveSubmitButton.disabled = true;
+  } else {
+    exportCollectionsSummary.textContent = `${selectedCount} of ${collections.length} collections`;
+    saveDialogStatus.textContent = "";
+    saveSubmitButton.disabled = false;
+  }
+}
+
+function getSelectedExportCollections() {
+  const collectionIds = new Set(getExportableCollections().map((collection) => collection.id));
+  return new Set([...exportCollectionSelection].filter((value) => collectionIds.has(value)));
 }
 
 function getExportableEventTypes() {

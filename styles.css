@@ -1050,11 +1050,13 @@ body.event-editor-open {
   cursor: not-allowed;
 }
 
-.export-events-section {
+.export-events-section,
+.export-collections-section {
   background: var(--panel);
 }
 
-.export-event-types {
+.export-event-types,
+.export-collection-list {
   display: grid;
   gap: 6px;
   margin: 0 12px;
@@ -1066,6 +1068,21 @@ body.event-editor-open {
   align-items: center;
   gap: 8px;
   min-height: 36px;
+}
+
+.export-collection {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.export-collection span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .event-type-swatch {

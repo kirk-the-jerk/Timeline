@@ -310,13 +310,20 @@
             <select id="export-scope">
               <option value="all">All events</option>
               <option value="event-types">Event types</option>
-              <option value="collection">Collection</option>
+              <option value="collection">Collections</option>
             </select>
           </div>
-          <div class="field" id="export-collection-field" hidden>
-            <label for="export-collection">Collection</label>
-            <select id="export-collection"></select>
-          </div>
+          <details class="optional-section export-collections-section" id="export-collections-options" hidden>
+            <summary>
+              <span>Exported collections</span>
+              <span class="optional-summary" id="export-collections-summary">All collections</span>
+            </summary>
+            <div class="export-collection-list" id="export-collections"></div>
+            <div class="export-event-actions">
+              <button type="button" id="select-all-export-collections">Select all</button>
+              <button type="button" id="clear-export-collections">Clear</button>
+            </div>
+          </details>
           <details class="optional-section export-events-section" id="export-events-options">
             <summary>
               <span>Exported events</span>
