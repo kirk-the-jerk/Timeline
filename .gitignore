@@ -12,3 +12,7 @@ node_modules/
 dist/
 .env
 .env.*
+
+# Local example/testing files (keep only the README)
+examples/*
+!examples/README.md

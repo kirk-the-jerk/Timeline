@@ -71,13 +71,21 @@ def restart_server():
     return 1
 
 
+class NoCacheHandler(SimpleHTTPRequestHandler):
+    # Without this the browser heuristically caches ES modules, so an edited
+    # src/*.js can be served stale next to a fresh one and fail import checks.
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+
 def serve():
     os.chdir(ROOT)
     PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
 
     try:
         ThreadingHTTPServer.allow_reuse_address = True
-        with ThreadingHTTPServer((HOST, PORT), SimpleHTTPRequestHandler) as httpd:
+        with ThreadingHTTPServer((HOST, PORT), NoCacheHandler) as httpd:
             print(f"Serving Timeline POC at http://{HOST}:{PORT}/", flush=True)
             httpd.serve_forever()
     finally:
