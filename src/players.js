@@ -14,8 +14,8 @@ export const PLAYER_TYPES = [
   {
     value: "slideshow",
     label: "Slideshow",
-    description: "Slideshow player placeholder.",
-    available: false
+    description: "Full-screen slideshow of the photos, with event details, collection title cards and auto-advance.",
+    available: true
   },
   {
     value: "map",

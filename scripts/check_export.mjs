@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { bundleModules } from "../src/exportBundle.js";
-import { EXPORT_RUNTIME_URL, TIMELINE_PLAYER_CSS_URL, buildStandaloneHtml } from "../src/htmlExport.js";
+import { EXPORT_RUNTIME_URL, PLAYER_CSS_URLS, buildStandaloneHtml } from "../src/htmlExport.js";
 import { PLAYER_RENDERERS, renderPlayer } from "../src/playerRenderers.js";
 import { normalizeTimeline } from "../src/timeline.js";
 
@@ -69,6 +69,7 @@ async function checkExportRoundTrip() {
   vm.runInNewContext(runtimeSource, { document, URL });
 
   assert.equal(document.get("timeline-title").textContent, timeline.title);
+  assert.equal(document.title, timeline.title, "the browser tab takes the timeline's name");
   assert.equal(document.get("timeline-summary").textContent, `Simple player / ${timeline.events.length} events`);
 
   const rows = document.get("timeline").children;
@@ -80,19 +81,24 @@ async function checkExportRoundTrip() {
   assert.ok(rows.some((row) => row.innerHTML.includes("–")), "time ranges render");
 }
 
-// The timeline player needs a real DOM (listeners, layout), so here it is only
-// checked to build, carry its styles, and compile as part of the export.
+// The timeline and slideshow players need a real DOM (listeners, layout), so here
+// they are only checked to build, carry their styles, and compile as part of the export.
 async function checkTimelinePlayerExport() {
   const timeline = makeTimeline();
   const runtime = await bundleModules(EXPORT_RUNTIME_URL, readFromDisk);
-  const playerCss = await readFromDisk(TIMELINE_PLAYER_CSS_URL);
-  const html = buildStandaloneHtml(timeline, "timeline", runtime, playerCss);
+  const playerCss = (await Promise.all(PLAYER_CSS_URLS.map(readFromDisk))).join("\n");
 
-  assert.equal(JSON.parse(html.match(/id="player-data">([\s\S]*?)<\/script>/)[1]).value, "timeline");
-  assert.ok(html.includes(".tl-player"), "player styles are inlined");
-  const runtimeSource = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
-  assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: "export-runtime-timeline.js" }));
-  assert.ok(runtimeSource.includes("renderTimelinePlayer"));
+  for (const [player, styleMarker, renderer] of [
+    ["timeline", ".tl-player", "renderTimelinePlayer"],
+    ["slideshow", ".ss-stage", "renderSlideshowPlayer"]
+  ]) {
+    const html = buildStandaloneHtml(timeline, player, runtime, playerCss);
+    assert.equal(JSON.parse(html.match(/id="player-data">([\s\S]*?)<\/script>/)[1]).value, player);
+    assert.ok(html.includes(styleMarker), `${player} player styles are inlined`);
+    const runtimeSource = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+    assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: `export-runtime-${player}.js` }));
+    assert.ok(runtimeSource.includes(renderer), `${player} renderer is bundled`);
+  }
 }
 
 async function checkBundlerRejectsUnsafeInput() {

@@ -3,7 +3,10 @@ import { bundleModules } from "./exportBundle.js";
 import { getPlayerType, normalizePlayerType } from "./players.js";
 
 export const EXPORT_RUNTIME_URL = new URL("./exportRuntime.js", import.meta.url).href;
-export const TIMELINE_PLAYER_CSS_URL = new URL("./timelinePlayer.css", import.meta.url).href;
+export const PLAYER_CSS_URLS = [
+  new URL("./timelinePlayer.css", import.meta.url).href,
+  new URL("./slideshowPlayer.css", import.meta.url).href
+];
 
 export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safeTimeline = normalizeTimeline({
@@ -12,7 +15,7 @@ export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   });
   const safePlayerType = normalizePlayerType(playerType);
   const runtime = await bundleModules(EXPORT_RUNTIME_URL, fetchText);
-  const playerCss = await fetchText(TIMELINE_PLAYER_CSS_URL);
+  const playerCss = (await Promise.all(PLAYER_CSS_URLS.map(fetchText))).join("\n");
   const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime, playerCss);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);

@@ -1,10 +1,11 @@
 import { escapeHtml, renderEventListItem } from "./eventCard.js";
+import { renderSlideshowPlayer } from "./slideshowPlayer.js";
 import { renderTimelinePlayer } from "./timelinePlayer.js";
 
 export const PLAYER_RENDERERS = {
   simple: renderSimplePlayer,
   timeline: renderTimelinePlayer,
-  slideshow: renderPlaceholderPlayer,
+  slideshow: renderSlideshowPlayer,
   map: renderPlaceholderPlayer
 };
 
