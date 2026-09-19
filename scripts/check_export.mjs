@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { bundleModules } from "../src/exportBundle.js";
 import { EXPORT_RUNTIME_URL, TIMELINE_PLAYER_CSS_URL, buildStandaloneHtml } from "../src/htmlExport.js";
+import { PLAYER_RENDERERS, renderPlayer } from "../src/playerRenderers.js";
 import { normalizeTimeline } from "../src/timeline.js";
 
 if (!globalThis.crypto) {
@@ -19,7 +20,30 @@ async function main() {
   await checkExportRoundTrip();
   await checkTimelinePlayerExport();
   await checkBundlerRejectsUnsafeInput();
+  checkRendererHandle();
   console.log("OK export runtime");
+}
+
+// renderPlayer always hands back something destroyable, and passes through a
+// renderer's own destroy, so the player page can undo a view before the next.
+function checkRendererHandle() {
+  const document = makeStubDocument({});
+  const container = document.get("timeline");
+  const player = { value: "simple" };
+
+  const plain = renderPlayer({ container, timeline: makeTimeline(), events: [], player });
+  assert.equal(typeof plain.destroy, "function", "a renderer that returns nothing still gets a handle");
+  assert.doesNotThrow(() => plain.destroy());
+
+  let destroyed = 0;
+  PLAYER_RENDERERS.test = () => ({ destroy: () => { destroyed += 1; } });
+  try {
+    const view = renderPlayer({ container, timeline: makeTimeline(), events: [], player: { value: "test" } });
+    view.destroy();
+    assert.equal(destroyed, 1, "the renderer's own destroy is the one returned");
+  } finally {
+    delete PLAYER_RENDERERS.test;
+  }
 }
 
 // The exported file is the product's shareability promise, so this checks the

@@ -16,6 +16,7 @@ const summary = document.querySelector("#timeline-summary");
 const timelineEl = document.querySelector("#timeline");
 
 let timelineDocument = null;
+let currentView = null;
 let selectedPlayer = getPlayerType(getRequestedPlayerType());
 const nav = initNav({ selectedPlayer: selectedPlayer.value, onSelectPlayer: switchPlayer });
 
@@ -52,7 +53,13 @@ function init() {
   }
 }
 
+function destroyCurrentView() {
+  currentView?.destroy();
+  currentView = null;
+}
+
 function renderEmptyState() {
+  destroyCurrentView();
   titleText.textContent = "No timeline loaded";
   summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header or drop a timeline file anywhere on this page.`;
   timelineEl.innerHTML = `<div class="empty-state">No timeline loaded.</div>`;
@@ -64,9 +71,10 @@ function renderTimeline(loadedTimeline) {
   const events = sortEvents(timelineDocument.events);
   titleText.textContent = timelineDocument.title;
   summary.textContent = `${selectedPlayer.label} player / ${events.length} event${events.length === 1 ? "" : "s"} in this timeline.`;
+  destroyCurrentView();
   timelineEl.innerHTML = "";
   loadButton.classList.remove("attention");
-  renderPlayer({
+  currentView = renderPlayer({
     container: timelineEl,
     timeline: timelineDocument,
     events,

@@ -50,6 +50,8 @@ export function renderTimelinePlayer({ container, timeline, events }) {
     end: SLIDER_MAX
   };
   let lastChartWidth = 0;
+  const observers = [];
+  const timers = new Set();
 
   container.classList.add("timeline-chart-mode");
   container.innerHTML = `
@@ -125,20 +127,34 @@ export function renderTimelinePlayer({ container, timeline, events }) {
   }
 
   if (plot && typeof ResizeObserver === "function") {
-    new ResizeObserver(() => {
+    const observer = new ResizeObserver(() => {
       if (Math.abs(plot.clientWidth - lastChartWidth) > 1) update();
-    }).observe(plot);
+    });
+    observer.observe(plot);
+    observers.push(observer);
   }
 
   // The chart stays pinned while the cards scroll beneath it, so a card has to
   // stop below the pinned block rather than behind it (see .tl-list in the CSS).
   if (typeof ResizeObserver === "function") {
-    new ResizeObserver(() => {
+    const observer = new ResizeObserver(() => {
       root.style.setProperty("--tl-pin-height", `${pin.offsetHeight}px`);
-    }).observe(pin);
+    });
+    observer.observe(pin);
+    observers.push(observer);
   }
 
   update();
+
+  return {
+    destroy() {
+      for (const observer of observers) observer.disconnect();
+      for (const timer of timers) clearTimeout(timer);
+      observers.length = 0;
+      timers.clear();
+      container.classList.remove("timeline-chart-mode");
+    }
+  };
 
   function moveHandle(handle) {
     if (handle === "start") {
@@ -173,7 +189,11 @@ export function renderTimelinePlayer({ container, timeline, events }) {
   function revealEntry(entry) {
     entry.row.scrollIntoView?.({ block: "start", behavior: "smooth" });
     entry.row.classList.add("is-highlighted");
-    setTimeout(() => entry.row.classList.remove("is-highlighted"), 1600);
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      entry.row.classList.remove("is-highlighted");
+    }, 1600);
+    timers.add(timer);
   }
 
   function matchesFilters(entry) {
