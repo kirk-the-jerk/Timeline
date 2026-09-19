@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Timeline POC</title>
+    <title>Timeline</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -11,7 +11,7 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
-          <span>Timeline POC</span>
+          <span>Timeline</span>
         </div>
         <nav class="nav-links" aria-label="App pages">
           <a class="button" href="index.html" aria-current="page">Product</a>
@@ -24,9 +24,8 @@
         <div>
           <h1>Private timelines, portable forever.</h1>
           <p class="lede">
-            A local-first scrapbook prototype for creating simple life, travel, project, or career timelines.
-            This proof of concept keeps editing data in IndexedDB and exports plain JSON that the standalone
-            player can open.
+            A local-first approach for creating simple life, travel, project, or career timelines.
+            Easy to export and share -- you control your data!
           </p>
           <div class="button-row">
             <a class="button primary" href="editor.html">Launch editor</a>
@@ -39,17 +38,30 @@
       <section class="info-grid" aria-label="Product overview">
         <article class="info-card">
           <h2>Local-first</h2>
-          <p>Timeline drafts are saved in the browser through IndexedDB. No account, backend, or cloud upload is involved in this prototype.</p>
+          <p>Nothing stored online.  Timelines live in your browser and are imported/exported to your files.</p>
         </article>
         <article class="info-card">
-          <h2>Structured data</h2>
-          <p>Events use a small shared JSON format, so the editor and player can evolve independently around the same document contract.</p>
+          <h2>Open-source, open formats</h2>
+          <p>Timelines are saved as a small, structured JSON format that anyone can read, edit, or build on. The code is open source on <a href="https://github.com/kirk-the-jerk/Timeline" target="_blank" rel="noopener">GitHub</a>.</p>
         </article>
         <article class="info-card">
-          <h2>Exportable</h2>
-          <p>Save an editable JSON backup or a standalone HTML file with the selected player embedded.</p>
+          <h2>Shareable stand-alone playback</h2>
+          <p>Export a single HTML file that plays your timeline as a flat timeline, a photo slideshow, or an interactive map<sup>*</sup> -- or write your own player.</p>
+        </article>
+        <article class="info-card">
+          <h2>Photos and places</h2>
+          <p>Attach photos and locations to any event. The map player can even look up missing coordinates for you.<sup>*</sup></p>
+        </article>
+        <article class="info-card">
+          <h2>Flexible by design</h2>
+          <p>Embed photos in the file or link them from elsewhere. Sort events into categories with your own labels, and group them into collections. Add custom fields, to any event.</p>
+        </article>
+        <article class="info-card">
+          <h2>For any kind of story</h2>
+          <p>Life milestones, trips, project histories, or a career path -- one simple format covers them all.</p>
         </article>
       </section>
+      <p class="footnote"><sup>*</sup> The map player requires online access to load map tiles and look up places.</p>
     </main>
 
     <script type="module">

@@ -314,6 +314,20 @@ button.primary:hover {
   background: var(--accent-dark);
 }
 
+button.info {
+  color: #ffffff;
+  background: var(--info);
+  border-color: var(--info);
+}
+
+button.info:hover {
+  background: #1f4a70;
+}
+
+.header-action-gap {
+  margin-left: 8px;
+}
+
 button.danger {
   color: #ffffff;
   background: var(--danger);
@@ -367,6 +381,16 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 18px;
+}
+
+.footnote {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.info-card a {
+  color: inherit;
 }
 
 .info-card h2,
