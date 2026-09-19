@@ -5,6 +5,7 @@ import { createCoordinatesField } from "./coordinatesField.js";
 import { createGeocoder, createLookupPermission } from "./geocode.js";
 import { createLookupMissingDialog } from "./lookupMissingDialog.js";
 import { createMapPicker } from "./mapPicker.js";
+import { getTileHosts } from "./mapTiles.js";
 import { initNav } from "./nav.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
@@ -741,15 +742,21 @@ function updateLinkedImageWarning() {
     }
   }
 
-  exportLinkWarning.hidden = linkedCount === 0;
-  if (linkedCount === 0) {
-    exportLinkWarning.textContent = "";
-    return;
+  const notes = [];
+  if (linkedCount > 0) {
+    const hosts = [...linkedHosts].join(", ");
+    notes.push(`${linkedCount} linked image${linkedCount === 1 ? "" : "s"} (${hosts}) are not embedded. `
+      + "Whoever opens the saved file will load them from those sites, which can see the request. "
+      + "Re-add them as uploaded images to embed them.");
   }
-  const hosts = [...linkedHosts].join(", ");
-  exportLinkWarning.textContent = `${linkedCount} linked image${linkedCount === 1 ? "" : "s"} (${hosts}) are not embedded. `
-    + "Whoever opens the saved file will load them from those sites, which can see the request. "
-    + "Re-add them as uploaded images to embed them.";
+  if (isHtmlSaveFormat(getSelectedSaveFormat()) && getPlayerType(htmlPlayerTypeInput.value).value === "map") {
+    notes.push(`The map loads its tiles from ${getTileHosts().join(", ")} (whichever the viewer picks). `
+      + "Those sites see the viewer's IP address and roughly which area they look at, and without a connection "
+      + "the map shows the events on a plain background.");
+  }
+
+  exportLinkWarning.hidden = notes.length === 0;
+  exportLinkWarning.textContent = notes.join(" ");
 }
 
 function updateExportControls() {

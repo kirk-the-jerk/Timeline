@@ -81,8 +81,8 @@ The viewer of the exported file gets no control over any of this.
 
 Linked images (`kind: "link"`) are kept as bare URLs. Opening the file loads them from their hosts.
 The save dialog warns about this, naming the hosts. Uploaded images are embedded as JPEG data URLs
-(see the README for the size cap). **Gap:** when Map is chosen the dialog should also name the tile hosts
-(`tile.openstreetmap.org`, `server.arcgisonline.com`). It doesn't yet.
+(see the README for the size cap). When Map is chosen the dialog also names the tile hosts
+(`getTileHosts` in `mapTiles.js`, so the note follows the source list).
 
 ## 3. Renderer contract
 

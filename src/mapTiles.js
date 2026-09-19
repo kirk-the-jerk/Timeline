@@ -55,6 +55,13 @@ export const TILE_SOURCES = [
 
 export const DEFAULT_TILE_SOURCE_ID = "osm";
 
+// The hosts the player may request tiles from, for the save dialog's note. A
+// `{s}.` subdomain placeholder is dropped, so OpenTopoMap shows as its bare host.
+export function getTileHosts() {
+  const hosts = TILE_SOURCES.map((source) => new URL(source.url.replace("{s}.", "")).hostname);
+  return [...new Set(hosts)];
+}
+
 export function normalizeTileSourceId(value) {
   return TILE_SOURCES.some((source) => source.id === value) ? value : DEFAULT_TILE_SOURCE_ID;
 }

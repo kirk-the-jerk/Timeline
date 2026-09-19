@@ -1,11 +1,11 @@
 # Map player
 
-**Status: sections 1 to 10 are built; the tour (11) is not.** Built: schema v10 `geo`, the
+**Status: sections 1 to 10 are built (including the save-dialog note naming the tile hosts); the tour (11) is deferred.** Built: schema v10 `geo`, the
 editor's Coordinates row (online lookup with consent, typed coordinates), pick on map (1.3), "Look up missing
 coordinates" (1.4), and the player: launcher and stage,
 Leaflet, tile sources, dots (shared, numbered), lines and arrows, both flyouts with pinning, the lightbox,
 stepping, keys and remembered settings, the export with Leaflet inlined, and the contract changes. Not built: the
-auto-play tour (11) and the save-dialog note naming the tile hosts (10, item 2). The `map` entry in [../../src/players.js](../../src/players.js) is `available: true`.
+auto-play tour (11), deferred as a future consideration. The `map` entry in [../../src/players.js](../../src/players.js) is `available: true`.
 **Not yet tried by hand:** a real `.timeline.html` opened from disk (the Referer question in section 4), tiles
 offline, resizing with panels pinned, and a real phone. It has been run in headless Edge from an exported file
 (tiles, stepping, scopes, lines, numbers, arrows, pinned split view, lightbox), with no console errors.
@@ -13,7 +13,7 @@ Rules shared by all players are in [../player-contract.md](../player-contract.md
 player (section 10).
 
 **Purpose:** show the timeline's events on a map, and let a viewer pick a collection, look at one event and its
-photos, step from event to event, and (later) watch the map play through them on its own. It plays events that
+photos, step from event to event, and (maybe one day) watch the map play through them on its own. It plays events that
 have a location. Everything else is ignored.
 
 Items marked **(default)** are my choices where the brief was silent. They are easy to change. Section 12 lists
@@ -353,9 +353,9 @@ Once built, the [player contract](../player-contract.md) changes:
    export check.
 6. The schema, README JSON shape and fixtures for `geo`, plus the editor field (section 1).
 
-## 11. Auto-play tour (second phase)
+## 11. Auto-play tour (deferred)
 
-The same stepper with a timer, like auto-advance in the slideshow. It is **not** in the first version.
+**Deferred (2026-09-19): a future consideration, not planned.** The same stepper with a timer, like auto-advance in the slideshow. It is **not** in the first version, and the player is complete without it.
 
 - Controls beside Previous and Next: **Play / pause**, **Delay** (seconds to dwell at each event, default 6),
   **Loop**. Space toggles play, as in the slideshow.
