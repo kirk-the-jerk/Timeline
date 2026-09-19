@@ -1,5 +1,7 @@
+import { normalizeGeo } from "./coords.js";
+
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 9;
+export const TIMELINE_VERSION = 10;
 export const DEFAULT_EVENT_TYPE = "misc";
 
 export const EVENT_TYPES = [
@@ -64,11 +66,12 @@ export function createEmptyTimeline() {
   };
 }
 
-export function createEvent({ type, title, date, time, tz, endDate, endTime, location, images, fields, collectionIds, eventTypes, collections }) {
+export function createEvent({ type, title, date, time, tz, endDate, endTime, location, geo, images, fields, collectionIds, eventTypes, collections }) {
   const timestamp = normalizeTimestamp({ date, time, tz });
   const endTimestamp = cleanText(endDate)
     ? normalizeEndTimestamp({ date: endDate, time: endTime, tz: timestamp.tz }, timestamp)
     : null;
+  const normalizedGeo = normalizeGeo(geo);
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type, eventTypes),
@@ -76,6 +79,7 @@ export function createEvent({ type, title, date, time, tz, endDate, endTime, loc
     timestamp,
     ...(endTimestamp ? { endTimestamp } : {}),
     location: cleanText(location),
+    ...(normalizedGeo ? { geo: normalizedGeo } : {}),
     images: normalizeEventImages(images),
     fields: normalizeFields(fields),
     collectionIds: normalizeEventCollectionIds(collectionIds, collections)
@@ -409,6 +413,7 @@ function normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, 
       tz: event.tz
     }, diagnostics, path);
   const endTimestamp = normalizeEndTimestamp(event.endTimestamp, timestamp, diagnostics, `${path}.endTimestamp`);
+  const geo = normalizeEventGeo(event.geo, diagnostics, `${path}.geo`);
   const id = cleanText(event.id);
   if (!id) {
     addDiagnostic(diagnostics, "warning", "generated-event-id", "Event was missing an id; assigned a new id.", `${path}.id`);
@@ -422,10 +427,20 @@ function normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, 
     timestamp,
     ...(endTimestamp ? { endTimestamp } : {}),
     location: cleanText(event.location),
+    ...(geo ? { geo } : {}),
     images: normalizeEventImages(event.images, mediaById, diagnostics, `${path}.images`),
     fields: normalizeFields(event.fields, diagnostics, `${path}.fields`),
     collectionIds: normalizeEventCollectionIds(event.collectionIds, collections, diagnostics, `${path}.collectionIds`)
   };
+}
+
+function normalizeEventGeo(geo, diagnostics, path) {
+  if (geo === undefined || geo === null) return null;
+  const normalized = normalizeGeo(geo);
+  if (!normalized) {
+    addDiagnostic(diagnostics, "warning", "invalid-geo-dropped", "Ignored the event's coordinates because they were not a valid latitude and longitude.", path);
+  }
+  return normalized;
 }
 
 function normalizeCollections(collections, diagnostics = [], path = "$.collections") {
@@ -1164,6 +1179,7 @@ const EVENT_KEYS = new Set([
   "time",
   "tz",
   "location",
+  "geo",
   "image",
   "imageId",
   "mediaId",

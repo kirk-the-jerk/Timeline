@@ -6,6 +6,9 @@ from shutil import which
 
 ROOT = Path(__file__).resolve().parent.parent
 JS_FILES = [
+    "src/coords.js",
+    "src/geocode.js",
+    "src/coordinatesField.js",
     "src/timeline.js",
     "src/fileLoad.js",
     "src/db.js",
@@ -25,6 +28,8 @@ JS_FILES = [
     "src/exportBundle.js",
     "src/exportRuntime.js",
     "scripts/check_schema.mjs",
+    "scripts/check_coords.mjs",
+    "scripts/check_geocode.mjs",
     "scripts/check_export.mjs",
     "scripts/check_media_blob.mjs",
     "scripts/check_timeline_layout.mjs",
@@ -50,7 +55,7 @@ def main():
             failures += 1
 
     if failures == 0:
-        for script in ("scripts/check_schema.mjs", "scripts/check_export.mjs", "scripts/check_media_blob.mjs", "scripts/check_timeline_layout.mjs", "scripts/check_slideshow.mjs"):
+        for script in ("scripts/check_schema.mjs", "scripts/check_coords.mjs", "scripts/check_geocode.mjs", "scripts/check_export.mjs", "scripts/check_media_blob.mjs", "scripts/check_timeline_layout.mjs", "scripts/check_slideshow.mjs"):
             result = subprocess.run([str(node), node_readable_path(node, ROOT / script)], cwd=ROOT)
             if result.returncode != 0:
                 failures += 1

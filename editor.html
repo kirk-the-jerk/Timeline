@@ -164,6 +164,30 @@
                 <label for="event-location">Location</label>
                 <input id="event-location" type="text" placeholder="Vancouver, BC" autocomplete="off">
               </div>
+              <div class="field">
+                <label for="event-coordinates">Coordinates</label>
+                <div class="input-with-button">
+                  <input id="event-coordinates" type="text" placeholder="30.7235, -95.5508" autocomplete="off" spellcheck="false" aria-describedby="geo-status">
+                  <button type="button" id="lookup-location">Look up</button>
+                </div>
+                <div class="geo-status" id="geo-status" role="status" aria-live="polite" hidden></div>
+                <details class="geo-matches" id="geo-matches" hidden>
+                  <summary id="geo-matches-summary"></summary>
+                  <ul id="geo-match-list"></ul>
+                </details>
+              </div>
+              <div class="lookup-consent" id="lookup-consent" role="group" aria-labelledby="lookup-consent-text" hidden>
+                <p id="lookup-consent-text"></p>
+                <div class="lookup-consent-actions">
+                  <button class="primary" type="button" id="lookup-consent-allow">Allow</button>
+                  <button type="button" id="lookup-consent-later">Not now</button>
+                </div>
+              </div>
+              <div class="lookup-settings">
+                <span id="lookup-setting-text"></span>
+                <button type="button" id="lookup-setting-toggle"></button>
+              </div>
+              <p class="lookup-attribution">Location search © OpenStreetMap contributors</p>
             </details>
             <details class="optional-section" id="collection-options">
               <summary>

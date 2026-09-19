@@ -1,6 +1,7 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
 import { createTimelineLoadController, LoadCancelledError, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
+import { createCoordinatesField } from "./coordinatesField.js";
 import { initNav } from "./nav.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
@@ -92,6 +93,7 @@ const tzInput = document.querySelector("#event-tz");
 const locationOptions = document.querySelector("#location-options");
 const locationSummary = document.querySelector("#location-summary");
 const locationInput = document.querySelector("#event-location");
+const coordinatesField = createCoordinatesField({ onChange: () => renderOptionalSummaries() });
 const collectionOptions = document.querySelector("#collection-options");
 const collectionSummary = document.querySelector("#collection-summary");
 const collectionInput = document.querySelector("#event-collection");
@@ -179,6 +181,13 @@ async function init() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  // A place that was just typed may still be on its way to coordinates.
+  submitEventButton.disabled = true;
+  try {
+    await coordinatesField.settled();
+  } finally {
+    submitEventButton.disabled = false;
+  }
   syncDraftFieldValues();
   syncDraftImageDetails();
 
@@ -189,6 +198,12 @@ form.addEventListener("submit", async (event) => {
     resetEventForm();
     render();
     setStatus("Could not update because the event no longer exists.", "error");
+    return;
+  }
+
+  if (!coordinatesField.commit()) {
+    locationOptions.open = true;
+    document.querySelector("#event-coordinates").focus();
     return;
   }
 
@@ -217,6 +232,7 @@ form.addEventListener("submit", async (event) => {
     endDate: endDateInput.value,
     endTime: endTimeInput.value || "00:00",
     location: locationInput.value,
+    geo: coordinatesField.getGeo(),
     images: draftImages.map(toEventImage),
     fields: draftFields,
     collectionIds,
@@ -232,6 +248,7 @@ form.addEventListener("submit", async (event) => {
     }
     : savedEvent;
   if (!savedEvent.endTimestamp) delete nextEvent.endTimestamp;
+  if (!savedEvent.geo) delete nextEvent.geo;
 
   lastTimeZone = getEventTimeZone(nextEvent) || lastTimeZone;
   timeline.events = previousEvent
@@ -1219,7 +1236,7 @@ function renderOptionalSummaries() {
   datetimeSummary.textContent = time || endTime
     ? `${time || "00:00"}${endTime ? ` – ${endTime}` : ""} ${tzInput.value}`
     : "No time set";
-  locationSummary.textContent = location || "No location";
+  locationSummary.textContent = location || (coordinatesField.getGeo() ? "Coordinates set" : "No location");
   collectionSummary.textContent = collection || "No collection";
   imageSummary.textContent = draftImages.length > 0
     ? `${draftImages.length} image${draftImages.length === 1 ? "" : "s"}`
@@ -1245,6 +1262,7 @@ function resetEventForm({ preserveEvent = null } = {}) {
   syncEndDateMin();
   tzInput.value = getEventTimeZone(preserveEvent) || lastTimeZone;
   locationInput.value = preserveEvent?.location || "";
+  coordinatesField.load({ location: locationInput.value, geo: preserveEvent?.geo });
   collectionInput.value = preserveEvent
     ? getEventCollections(timeline, preserveEvent).map((collection) => collection.title).join(", ")
     : "";
@@ -1295,7 +1313,7 @@ function closeOptionalSections() {
 
 function openPopulatedOptionalSections() {
   datetimeOptions.open = Boolean(timeInput.value || endTimeInput.value);
-  locationOptions.open = Boolean(locationInput.value.trim());
+  locationOptions.open = Boolean(locationInput.value.trim() || coordinatesField.getGeo());
   collectionOptions.open = Boolean(collectionInput.value.trim());
   imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImages.length > 0);
   fieldsOptions.open = draftFields.length > 0;
@@ -1322,6 +1340,7 @@ function startEditingEvent(eventId) {
   syncEndDateMin();
   tzInput.value = getEventTimeZone(event) || lastTimeZone;
   locationInput.value = event.location || "";
+  coordinatesField.load({ location: locationInput.value, geo: event.geo });
   collectionInput.value = getEventCollections(timeline, event).map((collection) => collection.title).join(", ");
   imageLinkInput.value = "";
   imageFileInput.value = "";

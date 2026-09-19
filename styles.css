@@ -522,8 +522,89 @@ select {
 .optional-section > .event-type-builder,
 .optional-section > .drop-zone,
 .optional-section > .image-preview,
-.optional-section > .custom-fields {
+.optional-section > .custom-fields,
+.optional-section > .lookup-consent,
+.optional-section > .lookup-settings,
+.optional-section > .lookup-attribution {
   margin: 0 12px;
+}
+
+.input-with-button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.geo-status {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.geo-status.error {
+  color: var(--danger);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.geo-matches summary {
+  cursor: pointer;
+  color: var(--accent-dark);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.geo-matches ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.geo-matches li button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 400;
+}
+
+.lookup-consent {
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  border-radius: 4px;
+  background: var(--warning-soft);
+  font-size: 0.9rem;
+}
+
+.lookup-consent p {
+  margin: 0 0 10px;
+}
+
+.lookup-consent-actions,
+.lookup-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.lookup-settings {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.lookup-settings button {
+  min-height: 32px;
+}
+
+.lookup-attribution {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .optional-summary {

@@ -3,7 +3,7 @@
 What every player, and the standalone export that carries it, must do. Per-player behavior lives in
 [players/](players/). Schema and JSON shape live in [../README.md](../README.md).
 
-Status as of schema v9. Sections say **Must** for a rule new work has to keep, and **As built** for
+Status as of schema v10. Sections say **Must** for a rule new work has to keep, and **As built** for
 what the code does today. **Gap** marks somewhere the two differ, or where nothing has been decided.
 
 ## 1. The product promise

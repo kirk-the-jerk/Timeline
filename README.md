@@ -55,7 +55,7 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
 
 ## Schema Compatibility
 
-Current exports use schema version `9`.
+Current exports use schema version `10`.
 
 - Version 1-style events with `name` and `date` are migrated on import.
 - Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
@@ -66,6 +66,7 @@ Current exports use schema version `9`.
 - Version 8 renames the built-in event type `job` to `work`, in both `eventTypes[]` and `events[].type`.
 - Version 9 adds an optional `events[].endTimestamp` (same `date` / `time` / `tz` shape as `timestamp`) for events that span a range, such as "lived in Vancouver 2015-2020". It is omitted for point-in-time events. An end that is earlier than the start, or has no date, is dropped with a warning on import.
 - Also under version 9, an optional top-level `hiddenEventTypes[]` lists built-in event type slugs (never `misc`) left out of `eventTypes[]`. Without it, every built-in type is present. A type that an event still uses is never hidden.
+- Version 10 adds an optional `events[].geo` (`{ "lat", "lng", "source" }`) for events that have a place on a map. `lat` (-90 to 90) and `lng` (-180 to 180) are numbers, kept to 5 decimal places. `source` is `"search"` (filled in by the editor's online lookup), `"map"` or `"manual"`; a missing or unknown one counts as `"manual"`. `location` stays as the human-readable label. A `geo` that isn't a valid point is dropped with a warning and the event loads without it. Version 9 files load unchanged, with no migration warning. The editor sets `geo` on the Location row; nothing reads it yet.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
@@ -78,7 +79,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 9,
+  "version": 10,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "eventTypes": [
@@ -124,6 +125,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",
+      "geo": { "lat": 49.28273, "lng": -123.12074, "source": "search" },
       "collectionIds": ["collection-uuid"],
       "images": [
         {

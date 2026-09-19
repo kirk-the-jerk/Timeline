@@ -1,0 +1,45 @@
+{
+  "format": "local-timeline-poc",
+  "version": 10,
+  "title": "Version 10 coordinates",
+  "updatedAt": "2026-09-19T00:00:00.000Z",
+  "events": [
+    {
+      "id": "searched",
+      "type": "travel",
+      "title": "Found by lookup",
+      "timestamp": { "date": "2026-05-01", "time": "09:00", "tz": "America/Chicago" },
+      "location": "Huntsville TX",
+      "geo": { "lat": 30.7235, "lng": -95.5508, "source": "search" }
+    },
+    {
+      "id": "pinned",
+      "type": "travel",
+      "title": "Pinned by hand",
+      "timestamp": { "date": "2026-05-02", "time": "09:00", "tz": "America/Chicago" },
+      "geo": { "lat": 49.28273, "lng": -123.12074, "source": "map" }
+    },
+    {
+      "id": "unsourced",
+      "type": "travel",
+      "title": "No source recorded",
+      "timestamp": { "date": "2026-05-03", "time": "09:00", "tz": "America/Chicago" },
+      "geo": { "lat": 1.5, "lng": 2.5 }
+    },
+    {
+      "id": "out-of-range",
+      "type": "travel",
+      "title": "Latitude out of range",
+      "timestamp": { "date": "2026-05-04", "time": "09:00", "tz": "America/Chicago" },
+      "location": "Nowhere",
+      "geo": { "lat": 123, "lng": 0, "source": "manual" }
+    },
+    {
+      "id": "text-numbers",
+      "type": "travel",
+      "title": "Coordinates as text",
+      "timestamp": { "date": "2026-05-05", "time": "09:00", "tz": "America/Chicago" },
+      "geo": { "lat": "30.1", "lng": "-95.1" }
+    }
+  ]
+}

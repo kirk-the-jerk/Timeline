@@ -33,6 +33,7 @@ function main() {
   checkCurrentDraftStaleEventTypeAliases();
   checkHiddenEventTypes();
   checkV8ToV9Migration();
+  checkGeo();
   checkTimeRanges();
   console.log("OK schema fixtures");
 }
@@ -382,9 +383,64 @@ function checkV8ToV9Migration() {
   const { timeline, diagnostics } = normalizeTimelineWithDiagnostics(timelineWithEvents(8, [
     { id: "event-1", type: "misc", title: "Point event", timestamp: { date: "2026-05-01", time: "09:00", tz: "UTC" } }
   ]));
-  assert.equal(timeline.version, 9);
+  assert.equal(timeline.version, TIMELINE_VERSION);
   assert.equal("endTimestamp" in timeline.events[0], false);
   assertCodesInclude(diagnostics, ["migrated-v8-schema"]);
+}
+
+// v10 adds `events[].geo`. A v9 file loads with no diagnostics and no `geo`.
+function checkGeo() {
+  const at = { date: "2026-05-01", time: "09:00", tz: "UTC" };
+  const v9 = normalizeTimelineWithDiagnostics(timelineWithEvents(9, [
+    { id: "old", type: "misc", title: "Old", timestamp: at, location: "Huntsville TX" }
+  ]));
+  assert.equal(v9.timeline.version, TIMELINE_VERSION);
+  assert.equal("geo" in v9.timeline.events[0], false);
+  assert.deepEqual(v9.diagnostics, []);
+
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics(timelineWithEvents(TIMELINE_VERSION, [
+    { id: "ok", title: "OK", timestamp: at, geo: { lat: 30.7235, lng: -95.5508, source: "search" } },
+    { id: "rounded", title: "Rounded", timestamp: at, geo: { lat: 30.123456789, lng: -95.987654321, source: "map" } },
+    { id: "no-source", title: "No source", timestamp: at, geo: { lat: 1, lng: 2 } },
+    { id: "bad-source", title: "Bad source", timestamp: at, geo: { lat: 1, lng: 2, source: "guess" } },
+    { id: "no-label", title: "No label", timestamp: at, geo: { lat: 10, lng: 20, source: "manual" } },
+    { id: "out-of-range", title: "Range", timestamp: at, geo: { lat: 91, lng: 0 } },
+    { id: "strings", title: "Strings", timestamp: at, geo: { lat: "30.1", lng: "-95.1" } },
+    { id: "nan", title: "NaN", timestamp: at, geo: { lat: null, lng: 5 } },
+    { id: "not-object", title: "Not object", timestamp: at, geo: "30.1,-95.1" },
+    { id: "null-geo", title: "Null", timestamp: at, geo: null }
+  ]));
+  const byId = Object.fromEntries(timeline.events.map((event) => [event.id, event]));
+
+  assert.deepEqual(byId.ok.geo, { lat: 30.7235, lng: -95.5508, source: "search" });
+  assert.deepEqual(byId.rounded.geo, { lat: 30.12346, lng: -95.98765, source: "map" });
+  assert.deepEqual(byId["no-source"].geo, { lat: 1, lng: 2 });
+  assert.deepEqual(byId["bad-source"].geo, { lat: 1, lng: 2 });
+  assert.deepEqual(byId["no-label"].geo, { lat: 10, lng: 20, source: "manual" });
+  for (const id of ["out-of-range", "strings", "nan", "not-object"]) {
+    assert.equal("geo" in byId[id], false, `${id} is dropped`);
+  }
+  assert.equal("geo" in byId["null-geo"], false);
+  assert.equal(diagnostics.filter((item) => item.code === "invalid-geo-dropped").length, 4);
+  assert.equal(diagnostics.some((item) => item.path === "$.events[5].geo"), true);
+
+  const fixture = normalizeFixture("v10-geo.timeline.json");
+  const fixtureGeo = Object.fromEntries(fixture.timeline.events.map((event) => [event.id, event.geo]));
+  assert.deepEqual(fixtureGeo.searched, { lat: 30.7235, lng: -95.5508, source: "search" });
+  assert.deepEqual(fixtureGeo.pinned, { lat: 49.28273, lng: -123.12074, source: "map" });
+  assert.deepEqual(fixtureGeo.unsourced, { lat: 1.5, lng: 2.5 });
+  assert.equal(fixtureGeo["out-of-range"], undefined);
+  assert.equal(fixtureGeo["text-numbers"], undefined);
+  assert.equal(fixture.timeline.events.find((event) => event.id === "out-of-range").location, "Nowhere", "the label survives a dropped point");
+  assert.equal(fixture.diagnostics.filter((item) => item.code === "invalid-geo-dropped").length, 2);
+
+  const created = createEvent({ title: "Pinned", date: "2026-04-10", tz: "UTC", location: "Vancouver", geo: { lat: 49.28273, lng: -123.12074, source: "map" } });
+  assert.deepEqual(created.geo, { lat: 49.28273, lng: -123.12074, source: "map" });
+  assert.equal("geo" in createEvent({ title: "Bare", date: "2026-04-10", tz: "UTC" }), false);
+  assert.equal("geo" in createEvent({ title: "Bad", date: "2026-04-10", tz: "UTC", geo: { lat: 200, lng: 0 } }), false);
+
+  const again = normalizeTimelineWithDiagnostics(JSON.parse(JSON.stringify(timeline)));
+  assert.deepEqual(again.timeline.events.map((event) => event.geo), timeline.events.map((event) => event.geo));
 }
 
 function checkTimeRanges() {

@@ -1,6 +1,8 @@
 # Map player
 
-**Status: draft, not implemented.** Nothing here is built. The `map` entry in
+**Status: section 1 is built; the player is not.** Built: schema v10 `geo`, the editor's Coordinates row
+(online lookup with consent, typed coordinates) and their tests. Not built: pin on map (1.3), "Look up missing
+coordinates" (1.4), and everything from section 2 on. The `map` entry in
 [../../src/players.js](../../src/players.js) is still `available: false`.
 Rules shared by all players are in [../player-contract.md](../player-contract.md). Two of them change for this
 player (section 10).
@@ -28,8 +30,10 @@ service, which the player must not call. So the schema gains an optional field (
   the editor may replace the coordinates when the location text changes (1.1). Missing or unknown counts as
   `"manual"`, the safe choice.
 - `location` stays as the label. `geo` is where the dot goes. An event with `geo` and no `location` is fine.
-- Migration v9 to v10 adds nothing to existing events.
-- The README's JSON shape and `timeline.js` normalization, and a schema fixture, are updated with the field.
+- Migration v9 to v10 adds nothing to existing events, and it logs no diagnostic (a version bump that changes
+  nothing is not worth a warning).
+- The README's JSON shape and `timeline.js` normalization, and a schema fixture (`v10-geo.timeline.json`), are
+  updated with the field.
 
 ### 1.1 Assigning coordinates in the editor
 
@@ -40,10 +44,12 @@ row under Location:
 
 - **Lookup.** When the Location field is committed (blur or Enter) and has text, the editor looks it up online
   and fills the coordinates. It is never run per keystroke, because the service forbids search-as-you-type.
-  A "Look up" button does the same on demand.
+  A "Look up" button does the same on demand. Enter in the Location field does it too when the text has changed
+  (it would otherwise save the whole event); with the text unchanged, Enter saves as before.
 - **Typing.** One text field that accepts `30.7235, -95.5508` (comma, space or both) and tolerates a paste from a
   maps site. Invalid text is flagged and not saved. Clearing it removes `geo`.
-- **Pin on a map.** A "Pick on map" button opens a dialog (1.3).
+- **Pin on a map.** A "Pick on map" button opens a dialog (1.3). *(Not built yet; the button isn't in the row, and
+  the "couldn't find" message says only "enter coordinates".)*
 
 **When a change may overwrite coordinates:**
 
@@ -55,6 +61,10 @@ row under Location:
 **Ambiguous places.** "Springfield" has many matches. The top match is used, and a status line under the field
 names what was matched ("Huntsville, Walker County, Texas, United States") with "N other matches". Opening it
 lists them, and choosing one replaces the coordinates. The label is a check for the person, not stored.
+
+**Saving while a lookup runs.** Saving the event waits for a lookup that is still on its way (the save button is
+disabled meanwhile), so typing a place and pressing Add event straight away keeps the coordinates. Typed
+coordinates that aren't valid block the save and flag the field.
 
 **Failure.** Offline, blocked, rate-limited or no match: a short status ("Couldn't find that place. Enter
 coordinates or pick on the map."). It never blocks saving or editing, and it never clears existing coordinates.
@@ -93,14 +103,18 @@ viewer's IP address and the page address go to the geocoder. So no lookup runs u
 - **Where.** An inline notice under the Location field, not a modal, so it doesn't interrupt editing. In the pin
   dialog it sits above the search box. Nothing is sent while it is showing.
 - **Text.** "Look up places online? The location text you enter, and your IP address, are sent to
-  nominatim.openstreetmap.org (OpenStreetMap) to find coordinates. Coordinates are saved in your timeline; nothing
-  else leaves this browser." Buttons: **Allow** and **Not now**.
+  nominatim.openstreetmap.org (OpenStreetMap) to find coordinates. If that service is unavailable they are sent to
+  photon.komoot.io (Komoot) instead. Coordinates are saved in your timeline; nothing else leaves this browser."
+  Buttons: **Allow** and **Not now**. **(As built)** The text names the fallback up front rather than only when
+  it is used.
 - **Allow** is remembered per browser in `localStorage`, in try/catch. If storage isn't available it asks each
   session. It covers the fallback service too, and the notice names both if the fallback is ever used.
-- **Not now** skips lookups for the rest of this editor session and is not remembered. The next lookup asks again.
-  Typing coordinates and pinning on the map work either way.
-- **Changing it.** An "Online location lookup" toggle in the editor's settings (or menu) shows the current state and
-  the host. Turning it off forgets the permission.
+- **Not now** skips the automatic lookups (a committed Location) for the rest of this editor session, with a status
+  line saying so, and is not remembered. Pressing **Look up** is an explicit request and asks again. A new editor
+  session asks again. Typing coordinates and pinning on the map work either way.
+- **Changing it.** The editor has no settings menu, so a line under the Coordinates row shows the state ("Online
+  lookup is on (nominatim.openstreetmap.org)") with a **Turn on** / **Turn off** button. Turning it on shows the
+  notice above; turning it off forgets the permission.
 - **Tiles in the pin dialog.** Opening the dialog is an explicit action, so its tile requests need no separate
   prompt. Like any map, the tile host learns roughly which area is being viewed.
 
@@ -132,8 +146,11 @@ version.
 - `src/coords.js`: parse and format coordinates, validation and rounding. No DOM, with a Node test.
 - `src/geocode.js`: the service interface, request queue with the rate limit, cache, and the stale-response
   check, with the fetch and the clock injected so a Node test can run it. Nominatim and Photon response parsing.
+  The consent state (`createLookupPermission`) lives here too.
+- `src/coordinatesField.js`: the editor's Coordinates row (status line, matches list, consent notice, the
+  online-lookup toggle). The editor reads `getGeo()` back and calls `commit()` before saving.
 - `src/mapPicker.js`: the dialog. It shares the Leaflet setup and tile list with the player.
-- The editor markup and `editor.js` for the row and status. `timeline.js` for `geo`.
+- The editor markup and `editor.js` for the wiring. `timeline.js` for `geo`.
 
 ## 2. Shape
 
@@ -363,7 +380,9 @@ from the map.
 - Schema: `geo` parsing, dropping bad values, and a fixture.
 - `check_coords.mjs` and `check_geocode.mjs`: coordinate parsing and formatting; the geocoder with a fake fetch and
   clock (the queue spacing, cache hits, a stale response being ignored, Nominatim and Photon parsing, the
-  fallback on failure, and the overwrite rules for `source`).
+  fallback on failure, the timeout, and the consent state). The overwrite rules for `source` are in `coords.js`
+  (`canAutoReplaceGeo`) and tested in `check_coords.mjs`. The editor row itself was checked by hand in a real
+  browser with a stubbed fetch, not by a script in the repo.
 - `check_export.mjs`: the export with Map includes Leaflet and its CSS, has no leftover `url(`, can't close its
   script tag early, and stays unchanged for other players.
 - **By hand:** everything with a real map: the panels, pinning, resize, lightbox, stepping and flying, tiles from a
