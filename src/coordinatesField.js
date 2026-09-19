@@ -7,14 +7,22 @@
 // allowed it (docs/players/map.md, section 1.2).
 
 import { canAutoReplaceGeo, formatCoordinates, normalizeGeo, parseCoordinates, sameGeo } from "./coords.js";
-import { NOMINATIM, PHOTON, createGeocoder, createLookupGuard, createLookupPermission } from "./geocode.js";
+import { LOOKUP_CONSENT_TEXT, NOMINATIM, createGeocoder, createLookupGuard, createLookupPermission } from "./geocode.js";
 
-const CONSENT_TEXT = `Look up places online? The location text you enter, and your IP address, are sent to ${NOMINATIM.host} (OpenStreetMap) to find coordinates. If that service is unavailable they are sent to ${PHOTON.host} (Komoot) instead. Coordinates are saved in your timeline; nothing else leaves this browser.`;
 const INVALID_TEXT = "Enter coordinates like 30.7235, -95.5508 (latitude, then longitude).";
-const NOT_FOUND_TEXT = "Couldn't find that place. Enter coordinates instead.";
-const FAILED_TEXT = "Couldn't reach the place lookup. Enter coordinates instead.";
+const NOT_FOUND_TEXT = "Couldn't find that place. Enter coordinates or pick on the map.";
+const FAILED_TEXT = "Couldn't reach the place lookup. Enter coordinates or pick on the map.";
 
-export function createCoordinatesField({ onChange = () => {}, storage = getStorage() } = {}) {
+// `geocoder` and `permission` are shared with the pin dialog and the batch
+// lookup, so one queue spaces every request and one answer covers them all.
+// `picker` is the pin-on-map dialog (mapPicker.js).
+export function createCoordinatesField({
+  onChange = () => {},
+  storage = getStorage(),
+  geocoder = createGeocoder({ fetch: (...args) => window.fetch(...args), storage }),
+  permission = createLookupPermission(storage),
+  picker = null
+} = {}) {
   const locationInput = document.querySelector("#event-location");
   const coordinatesInput = document.querySelector("#event-coordinates");
   const lookupButton = document.querySelector("#lookup-location");
@@ -29,12 +37,8 @@ export function createCoordinatesField({ onChange = () => {}, storage = getStora
   const settingText = document.querySelector("#lookup-setting-text");
   const settingToggle = document.querySelector("#lookup-setting-toggle");
 
-  const geocoder = createGeocoder({
-    fetch: (...args) => window.fetch(...args),
-    storage
-  });
+  const pickButton = document.querySelector("#pick-on-map");
   const guard = createLookupGuard();
-  const permission = createLookupPermission(storage);
 
   let geo = null;
   // The location text the coordinates were last matched against, so that only
@@ -44,7 +48,7 @@ export function createCoordinatesField({ onChange = () => {}, storage = getStora
   // its coordinates instead of dropping them.
   let pendingLookup = Promise.resolve();
 
-  consentText.textContent = CONSENT_TEXT;
+  consentText.textContent = LOOKUP_CONSENT_TEXT;
 
   coordinatesInput.addEventListener("input", () => {
     coordinatesInput.removeAttribute("aria-invalid");
@@ -73,6 +77,28 @@ export function createCoordinatesField({ onChange = () => {}, storage = getStora
     }
     anchorText = text;
     runLookup(text, { explicit: true });
+  });
+
+  pickButton.hidden = !picker;
+  pickButton.addEventListener("click", async () => {
+    if (!picker) return;
+    // The typed text may not have been read yet; take it before the dialog
+    // starts from the current point.
+    if (!commit()) return;
+    const outcome = await picker.open({ geo, location: locationInput.value.trim() });
+    // The dialog may have been allowed to look places up.
+    renderSetting();
+    if (!outcome) return;
+    // A pin replaces whatever a lookup answer was still on its way with.
+    if (outcome.action === "use") {
+      setPoint({ ...outcome.geo, source: "map" });
+      clearMatches();
+      showStatus("Coordinates set from the map.");
+    } else if (outcome.action === "clear") {
+      setPoint(null);
+      clearMatches();
+      showStatus("Coordinates cleared.");
+    }
   });
 
   consentAllowButton.addEventListener("click", () => {
@@ -126,14 +152,16 @@ export function createCoordinatesField({ onChange = () => {}, storage = getStora
     // refuse to save with a value that would be lost.
     commit,
 
-    // For the pin-on-map dialog and other callers that set a point directly.
-    setGeo(nextGeo) {
-      guard.cancel();
-      geo = normalizeGeo(nextGeo);
-      renderCoordinates();
-      onChange();
-    }
+    // For callers that set a point directly.
+    setGeo: setPoint
   };
+
+  function setPoint(nextGeo) {
+    guard.cancel();
+    geo = normalizeGeo(nextGeo);
+    renderCoordinates();
+    onChange();
+  }
 
   function commit() {
     const text = coordinatesInput.value.trim();

@@ -10,6 +10,7 @@ import {
   parseNominatimResponse,
   parsePhotonResponse
 } from "../src/geocode.js";
+import { BATCH_FAILURE_LIMIT, eventsMissingCoordinates, lookUpMissingCoordinates } from "../src/geocodeBatch.js";
 
 const NOMINATIM_HOST = "nominatim.openstreetmap.org";
 const PHOTON_HOST = "photon.komoot.io";
@@ -36,7 +37,58 @@ async function main() {
   await checkTimeout();
   checkGuard();
   checkPermission();
+  await checkBatchLookup();
   console.log("OK geocode");
+}
+
+async function checkBatchLookup() {
+  const events = [
+    { id: "a", title: "Born", location: "Huntsville TX" },
+    { id: "b", title: "Has point", location: "Paris", geo: { lat: 1, lng: 2, source: "manual" } },
+    { id: "c", title: "No place" },
+    { id: "d", title: "Blank place", location: "   " },
+    { id: "e", title: "Nowhere", location: "Zzyzx" }
+  ];
+  assert.deepEqual(eventsMissingCoordinates(events).map((event) => event.id), ["a", "e"], "only events with a location and no geo");
+
+  const world = makeWorld({
+    [NOMINATIM_HOST]: (url) => okJson(new URL(url).searchParams.get("q") === "Zzyzx" ? [] : NOMINATIM_HUNTSVILLE)
+  });
+  const geocoder = createGeocoder({ ...world });
+  const progress = [];
+  const result = await lookUpMissingCoordinates({ events, geocoder, onProgress: (item) => progress.push([item.done, item.total]) });
+  assert.deepEqual(result.matched, [{
+    id: "a", title: "Born", location: "Huntsville TX",
+    label: "Huntsville, Walker County, Texas, United States", lat: 30.72353, lng: -95.55078, others: 1
+  }], "the top match is used and the others are counted");
+  assert.deepEqual(result.notFound, [{ id: "e", title: "Nowhere", location: "Zzyzx" }]);
+  assert.deepEqual(result.failed, []);
+  assert.equal(result.cancelled, false);
+  assert.deepEqual(progress, [[0, 2], [1, 2], [2, 2]]);
+  assert.equal(world.calls.length, 2, "an event with geo is never looked up");
+  assert.ok(world.calls[1].at - world.calls[0].at >= 1100, "the shared queue spaces the requests");
+
+  // Cancel stops at the next event and keeps what was found.
+  const cancelWorld = makeWorld({ [NOMINATIM_HOST]: okJson(NOMINATIM_HUNTSVILLE) });
+  let cancelled = false;
+  const cancelResult = await lookUpMissingCoordinates({
+    events: [{ id: "1", location: "A" }, { id: "2", location: "B" }, { id: "3", location: "C" }],
+    geocoder: createGeocoder({ ...cancelWorld }),
+    onProgress: ({ done }) => { if (done === 1) cancelled = true; },
+    isCancelled: () => cancelled
+  });
+  assert.deepEqual(cancelResult.matched.map((item) => item.id), ["1", "2"]);
+  assert.deepEqual(cancelResult.notTried.map((item) => item.id), ["3"]);
+  assert.equal(cancelResult.cancelled, true);
+
+  // Nothing reachable: give up after a few failures instead of waiting on every event.
+  const offline = makeWorld({ [NOMINATIM_HOST]: new Error("offline"), [PHOTON_HOST]: new Error("offline") });
+  const many = Array.from({ length: BATCH_FAILURE_LIMIT + 2 }, (_, index) => ({ id: `e${index}`, location: `Place ${index}` }));
+  const failedResult = await lookUpMissingCoordinates({ events: many, geocoder: createGeocoder({ ...offline }) });
+  assert.equal(failedResult.failed.length, BATCH_FAILURE_LIMIT);
+  assert.equal(failedResult.notTried.length, 2);
+  assert.equal(failedResult.gaveUp, true);
+  assert.equal(failedResult.matched.length, 0);
 }
 
 function checkParsers() {

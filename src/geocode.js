@@ -34,6 +34,10 @@ export const PHOTON = {
 
 export const DEFAULT_GEOCODE_PROVIDERS = [NOMINATIM, PHOTON];
 
+// Shown by everything in the editor that can start a lookup (the Location row,
+// the pin dialog, the batch action), so they all ask the same question.
+export const LOOKUP_CONSENT_TEXT = `Look up places online? The location text you enter, and your IP address, are sent to ${NOMINATIM.host} (OpenStreetMap) to find coordinates. If that service is unavailable they are sent to ${PHOTON.host} (Komoot) instead. Coordinates are saved in your timeline; nothing else leaves this browser.`;
+
 export class GeocodeError extends Error {
   constructor(message, { cause } = {}) {
     super(message);

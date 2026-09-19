@@ -408,6 +408,10 @@ button:disabled {
   display: block;
 }
 
+.event-list-header > button {
+  margin: 0 0 10px;
+}
+
 .event-list-header h2 {
   margin: 0 0 10px;
 }
@@ -531,7 +535,7 @@ select {
 
 .input-with-button {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) repeat(2, auto);
   gap: 8px;
 }
 
@@ -1405,4 +1409,129 @@ body.event-editor-open {
   .timeline-event .event-date {
     text-align: left;
   }
+}
+
+/* Pick on map (src/mapPicker.js) and Look up missing coordinates */
+
+.mpick-dialog {
+  width: min(760px, calc(100% - 32px));
+}
+
+.mpick-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.mpick-results {
+  display: grid;
+  gap: 6px;
+  max-height: 140px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.mpick-results button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 400;
+}
+
+.mpick-map-wrap {
+  position: relative;
+}
+
+.mpick-map {
+  height: min(52vh, 420px);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #e6e9ec;
+}
+
+.mpick-tiles-note {
+  position: absolute;
+  right: 8px;
+  bottom: 28px;
+  left: 8px;
+  z-index: 500;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--warning-soft);
+  color: var(--text);
+  font-size: 0.86rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mpick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mpick-readout {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mpick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mpick-missing {
+  margin: 0;
+}
+
+.leaflet-marker-icon.mpick-pin {
+  background: none;
+  border: 0;
+}
+
+.mpick-pin span {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transform: translateY(2px) rotate(-45deg);
+}
+
+.lookup-missing-body {
+  display: grid;
+  gap: 10px;
+}
+
+.lookup-missing-body p {
+  margin: 0;
+}
+
+.lookup-missing-body progress {
+  width: 100%;
+}
+
+.lookup-missing-section h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.lookup-missing-section ul {
+  display: grid;
+  gap: 4px;
+  max-height: 200px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  overflow-y: auto;
+  font-size: 0.9rem;
 }

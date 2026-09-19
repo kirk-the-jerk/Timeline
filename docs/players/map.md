@@ -1,11 +1,11 @@
 # Map player
 
-**Status: sections 1 to 10 are built, except 1.3 and 1.4; the tour (11) is not.** Built: schema v10 `geo`, the
-editor's Coordinates row (online lookup with consent, typed coordinates), and the player: launcher and stage,
+**Status: sections 1 to 10 are built; the tour (11) is not.** Built: schema v10 `geo`, the
+editor's Coordinates row (online lookup with consent, typed coordinates), pick on map (1.3), "Look up missing
+coordinates" (1.4), and the player: launcher and stage,
 Leaflet, tile sources, dots (shared, numbered), lines and arrows, both flyouts with pinning, the lightbox,
-stepping, keys and remembered settings, the export with Leaflet inlined, and the contract changes. Not built: pin
-on map (1.3), "Look up missing coordinates" (1.4), the auto-play tour (11), and the save-dialog note naming the tile
-hosts (10, item 2). The `map` entry in [../../src/players.js](../../src/players.js) is `available: true`.
+stepping, keys and remembered settings, the export with Leaflet inlined, and the contract changes. Not built: the
+auto-play tour (11) and the save-dialog note naming the tile hosts (10, item 2). The `map` entry in [../../src/players.js](../../src/players.js) is `available: true`.
 **Not yet tried by hand:** a real `.timeline.html` opened from disk (the Referer question in section 4), tiles
 offline, resizing with panels pinned, and a real phone. It has been run in headless Edge from an exported file
 (tiles, stepping, scopes, lines, numbers, arrows, pinned split view, lightbox), with no console errors.
@@ -53,8 +53,7 @@ row under Location:
   (it would otherwise save the whole event); with the text unchanged, Enter saves as before.
 - **Typing.** One text field that accepts `30.7235, -95.5508` (comma, space or both) and tolerates a paste from a
   maps site. Invalid text is flagged and not saved. Clearing it removes `geo`.
-- **Pin on a map.** A "Pick on map" button opens a dialog (1.3). *(Not built yet; the button isn't in the row, and
-  the "couldn't find" message says only "enter coordinates".)*
+- **Pin on a map.** A "Pick on map" button opens a dialog (1.3).
 
 **When a change may overwrite coordinates:**
 
@@ -125,6 +124,11 @@ viewer's IP address and the page address go to the geocoder. So no lookup runs u
 
 ### 1.3 Pick on map
 
+*(As built: [../../src/mapPicker.js](../../src/mapPicker.js). It also has a map-style menu, using the player's tile
+list, and remembers the last view and style in `localStorage`. A start view from the location text is looked up
+only when lookups are already allowed; opening the dialog is not consent. Typing coordinates is the keyboard
+route to a point, since a pin is placed with the pointer.)*
+
 A modal dialog in the editor.
 
 - A Leaflet map (the same vendored copy and tile list as the player, section 3 and 4), a pin, a search box
@@ -143,8 +147,12 @@ A timeline made before this has locations and no coordinates. A **Look up missin
 editor goes through the events that have a location and no `geo`, one at a time under the rate limit, with progress
 and a Cancel button. It uses the top match and sets `source: "search"`. Afterwards it lists each event with the
 place it matched, so mistakes ("Springfield") can be spotted, and it lists events with no result. It never
-touches events that already have `geo`. It needs the same permission as 1.2. This is a follow-up, not the first
-version.
+touches events that already have `geo`. It needs the same permission as 1.2.
+
+*(As built: [../../src/lookupMissingDialog.js](../../src/lookupMissingDialog.js), with the logic in
+[../../src/geocodeBatch.js](../../src/geocodeBatch.js), opened from a button in the "Current events" header. The
+results are saved when the run ends, including after Cancel, which keeps what was found. After three failures in a
+row it stops and lists the rest as not looked up, so an offline editor doesn't wait out a timeout per event.)*
 
 ### 1.5 Where the code goes
 
@@ -154,7 +162,8 @@ version.
   The consent state (`createLookupPermission`) lives here too.
 - `src/coordinatesField.js`: the editor's Coordinates row (status line, matches list, consent notice, the
   online-lookup toggle). The editor reads `getGeo()` back and calls `commit()` before saving.
-- `src/mapPicker.js`: the dialog. It shares the Leaflet setup and tile list with the player.
+- `src/mapPicker.js`: the dialog. It shares the vendored Leaflet and tile list with the player, and the editor's one
+  geocoder and consent answer. `src/geocodeBatch.js` and `src/lookupMissingDialog.js`: 1.4.
 - The editor markup and `editor.js` for the wiring. `timeline.js` for `geo`.
 
 ## 2. Shape

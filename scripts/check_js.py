@@ -8,7 +8,10 @@ ROOT = Path(__file__).resolve().parent.parent
 JS_FILES = [
     "src/coords.js",
     "src/geocode.js",
+    "src/geocodeBatch.js",
     "src/coordinatesField.js",
+    "src/mapPicker.js",
+    "src/lookupMissingDialog.js",
     "src/timeline.js",
     "src/fileLoad.js",
     "src/db.js",

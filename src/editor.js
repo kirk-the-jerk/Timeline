@@ -2,6 +2,9 @@ import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./d
 import { createTimelineLoadController, LoadCancelledError, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
 import { createCoordinatesField } from "./coordinatesField.js";
+import { createGeocoder, createLookupPermission } from "./geocode.js";
+import { createLookupMissingDialog } from "./lookupMissingDialog.js";
+import { createMapPicker } from "./mapPicker.js";
 import { initNav } from "./nav.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
@@ -93,7 +96,25 @@ const tzInput = document.querySelector("#event-tz");
 const locationOptions = document.querySelector("#location-options");
 const locationSummary = document.querySelector("#location-summary");
 const locationInput = document.querySelector("#event-location");
-const coordinatesField = createCoordinatesField({ onChange: () => renderOptionalSummaries() });
+// One geocoder (one request queue and cache) and one consent answer serve the
+// Location row, the pin dialog and the batch lookup.
+const lookupStorage = getLookupStorage();
+const geocoder = createGeocoder({ fetch: (...args) => window.fetch(...args), storage: lookupStorage });
+const lookupPermission = createLookupPermission(lookupStorage);
+const coordinatesField = createCoordinatesField({
+  onChange: () => renderOptionalSummaries(),
+  storage: lookupStorage,
+  geocoder,
+  permission: lookupPermission,
+  picker: createMapPicker({ geocoder, permission: lookupPermission, storage: lookupStorage })
+});
+const lookupMissingButton = document.querySelector("#lookup-missing-coordinates");
+const lookupMissingDialog = createLookupMissingDialog({
+  geocoder,
+  permission: lookupPermission,
+  getEvents: () => timeline.events,
+  applyMatches: applyLookedUpCoordinates
+});
 const collectionOptions = document.querySelector("#collection-options");
 const collectionSummary = document.querySelector("#collection-summary");
 const collectionInput = document.querySelector("#event-collection");
@@ -522,10 +543,35 @@ document.addEventListener("paste", async (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || !isEventEditorOpen()) return;
+  // Escape in the map or lookup dialog closes that dialog, not the editor behind it.
+  if (event.key !== "Escape" || !isEventEditorOpen() || document.querySelector("dialog[open]")) return;
   event.preventDefault();
   closeEventEditor();
 });
+
+lookupMissingButton.addEventListener("click", () => lookupMissingDialog.open());
+
+// Called by the batch lookup with `{ id, lat, lng }` per matched event. An event
+// that got coordinates some other way meanwhile is left alone.
+async function applyLookedUpCoordinates(matched) {
+  const byId = new Map(matched.map((item) => [item.id, item]));
+  let count = 0;
+  timeline.events = timeline.events.map((event) => {
+    const match = byId.get(event.id);
+    if (!match || event.geo) return event;
+    count += 1;
+    return { ...event, geo: { lat: match.lat, lng: match.lng, source: "search" } };
+  });
+  await persist(`Set coordinates on ${count} event${count === 1 ? "" : "s"}.`);
+}
+
+function getLookupStorage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 function hasDraftContent() {
   return timeline.events.length > 0 || timeline.media.length > 0;
