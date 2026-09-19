@@ -10,6 +10,12 @@ This prototype is intentionally dependency-free:
 - `src/db.js` stores the active editor draft in IndexedDB, with timeline metadata and media in separate object stores.
 - `src/timeline.js` defines the shared timeline JSON shape.
 
+## Documentation
+
+- [docs/player-contract.md](docs/player-contract.md): requirements for the standalone export and the rules every player follows.
+- [docs/players/](docs/players/): one behavior spec per player.
+- [todo.md](todo.md) is the backlog, and [CRITIQUE.md](CRITIQUE.md) is the product assessment.
+
 ## Run Locally
 
 From this folder:

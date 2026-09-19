@@ -37,3 +37,4 @@ This performs JavaScript syntax checks and schema compatibility fixture tests.
 - Avoid committing exported timelines, private data, browser downloads, or large media files.
 - Prefer focused changes over broad refactors.
 - Browser IndexedDB behavior should be tested through a local server, not direct file opens.
+- Player or standalone-export changes: read `docs/player-contract.md` first, and keep it and the matching `docs/players/*.md` in step with the code.
