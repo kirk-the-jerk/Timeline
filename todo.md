@@ -143,3 +143,14 @@ In a repo where the schema is the main deliverable, the schema doc is three vers
 - [x] Remove the `zip` and `html-images` radio options ([editor.html:274](editor.html#L274), [editor.html:290](editor.html#L290)) rather than showing disabled scope that doesn't exist.
 - [x] Event editor isn't a real dialog — a `div` with `role="dialog" aria-modal="true"` ([editor.html:95](editor.html#L95)). Escape and backdrop-click are handled, but no focus trap, so Tab walks into the page behind. `<dialog>` is used correctly for save/load; this one is the outlier. Fixed by making the page behind it `inert` while it's open ([src/editor.js](src/editor.js) `setPageBehindEditorInert`) rather than converting it to `<dialog>`, which would mean re-doing the slide-in panel styling.
 - [x] ~~`getExportTimelineTitleValue` dead fallback~~ — **not dead, left as is.** `required` only rejects an empty value; a whitespace-only name passes it, and `.trim()` then yields `""`, so the fallback is what stops a blank title in the saved file.
+
+## P10 — Later: are ZIP and HTML + images worth building?
+
+The ZIP and HTML + images save options were removed in P9 because they weren't implemented. They may
+still be worth building, but that's a question to answer late, after P2–P5, not a commitment. Nothing
+here should start before the artifact and player questions above are settled.
+
+- [ ] Decide whether either format earns its place. The single-file HTML artifact is the product's core promise ("one file, openable in any browser in fifteen years"). Formats with separate image files trade that away: a ZIP or a sidecar folder can be split, lost or renamed, which is exactly what the single file avoids. The case for them is size — a 100-photo scrapbook as base64 in one file gets large (see P5).
+- [ ] If yes, do P5's `Blob` storage first, since both formats need originals or downscaled images kept as separate binary data rather than base64 in the JSON.
+- [ ] If ZIP export ships, add **ZIP import** too: [src/fileLoad.js:61](src/fileLoad.js#L61) still throws "ZIP loading is not implemented yet" for `.zip` files. Export without import would break the round trip.
+- [ ] If neither ships, delete the `zip` handling in `fileLoad.js` so the code doesn't imply a plan that doesn't exist.
