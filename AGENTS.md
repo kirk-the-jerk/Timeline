@@ -2,7 +2,7 @@
 
 ## Project
 
-Timeline POC is a dependency-free, local-first scrapbook/timeline prototype.
+Timeline is a dependency-free, local-first scrapbook/timeline tool.
 
 ## Run
 

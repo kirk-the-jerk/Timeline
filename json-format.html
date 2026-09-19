@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Timeline JSON format</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+      .doc { max-width: 820px; }
+      .doc h1 { margin: 0 0 8px; letter-spacing: 0; }
+      .doc h2 { margin: 36px 0 10px; letter-spacing: 0; }
+      .doc h3 { margin: 22px 0 6px; letter-spacing: 0; }
+      .doc p, .doc li { color: var(--muted); line-height: 1.55; }
+      .doc p { margin: 0 0 12px; }
+      .doc code { background: var(--panel-soft); border-radius: 4px; padding: 1px 5px; font-size: 0.9em; }
+      .doc pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; overflow-x: auto; margin: 0 0 16px; line-height: 1.45; }
+      .doc pre code { background: none; padding: 0; }
+      .doc table { width: 100%; border-collapse: collapse; margin: 0 0 16px; background: var(--panel); border: 1px solid var(--line); }
+      .doc th, .doc td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+      .doc th { background: var(--panel-soft); }
+      .doc td:last-child { color: var(--muted); }
+      .table-scroll { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Timeline</span>
+        </div>
+        <nav class="nav-links" aria-label="App pages">
+          <a class="button" href="index.html">Product</a>
+          <a class="button" href="editor.html">Editor</a>
+          <a class="button" href="player.html" data-nav="player">Player</a>
+        </nav>
+      </header>
+
+      <article class="doc">
+        <h1>Timeline JSON format</h1>
+        <p>A timeline is saved as a single UTF-8 JSON file, named <code>*.timeline.json</code>. This page describes the current schema, <strong>version 10</strong>. The editor and players read every older version, and anything they don't recognise is preserved rather than discarded.</p>
+
+        <h2>Overview</h2>
+        <pre><code>{
+  "format": "local-timeline-poc",
+  "version": 10,
+  "title": "Europe",
+  "updatedAt": "2026-09-19T20:45:35.484Z",
+  "eventTypes": [ ... ],
+  "hiddenEventTypes": [ ... ],   // optional
+  "collections": [ ... ],
+  "media": [ ... ],
+  "events": [ ... ]
+}</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>format</code></td><td>string</td><td>Always <code>"local-timeline-poc"</code>. Files with any other value are rejected.</td></tr>
+              <tr><td><code>version</code></td><td>integer</td><td>Schema version, currently <code>10</code>. Older files are migrated on load; newer files load with a warning.</td></tr>
+              <tr><td><code>title</code></td><td>string</td><td>The timeline's name.</td></tr>
+              <tr><td><code>updatedAt</code></td><td>string</td><td>ISO 8601 date-time of the last save.</td></tr>
+              <tr><td><code>eventTypes</code></td><td>array</td><td>The categories events can belong to. See <a href="#event-types">Event types</a>.</td></tr>
+              <tr><td><code>hiddenEventTypes</code></td><td>array of strings</td><td>Optional. Built-in types the author has removed from their list.</td></tr>
+              <tr><td><code>collections</code></td><td>array</td><td>Named groups of events, such as a trip. See <a href="#collections">Collections</a>.</td></tr>
+              <tr><td><code>media</code></td><td>array</td><td>Embedded images. See <a href="#media">Media</a>.</td></tr>
+              <tr><td><code>events</code></td><td>array</td><td>The events themselves, sorted by date and time. See <a href="#events">Events</a>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="events">Events</h2>
+        <pre><code>{
+  "id": "40f5dc82-0fc8-4e3c-b6d5-0aa287c6b569",
+  "type": "travel",
+  "title": "Frankfurt",
+  "timestamp": { "date": "2026-09-01", "time": "09:30", "tz": "Europe/Berlin" },
+  "endTimestamp": { "date": "2026-09-03", "time": "00:00", "tz": "Europe/Berlin" },
+  "location": "Frankfurt",
+  "geo": { "lat": 50.11064, "lng": 8.68209, "source": "search" },
+  "images": [ ... ],
+  "fields": [ ... ],
+  "collectionIds": [ "681226a6-3692-496f-8318-bd806ea845ed" ]
+}</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>string</td><td>Unique within the file. Usually a UUID. A missing or duplicate id is replaced on load.</td></tr>
+              <tr><td><code>type</code></td><td>string</td><td>The <code>value</code> of one of the timeline's event types. Unknown types become <code>"misc"</code>.</td></tr>
+              <tr><td><code>title</code></td><td>string</td><td>Event name. Defaults to "Untitled event".</td></tr>
+              <tr><td><code>timestamp</code></td><td>object</td><td>When the event starts. See <a href="#timestamps">Timestamps</a>.</td></tr>
+              <tr><td><code>endTimestamp</code></td><td>object</td><td>Optional. When the event ends, in the same shape. Ignored if it is earlier than the start.</td></tr>
+              <tr><td><code>location</code></td><td>string</td><td>Free-text place name. May be empty.</td></tr>
+              <tr><td><code>geo</code></td><td>object</td><td>Optional coordinates. See <a href="#geo">Coordinates</a>.</td></tr>
+              <tr><td><code>images</code></td><td>array</td><td>The event's photo gallery. See <a href="#images">Image gallery</a>.</td></tr>
+              <tr><td><code>fields</code></td><td>array</td><td>Extra labelled values. See <a href="#fields">Custom fields</a>.</td></tr>
+              <tr><td><code>collectionIds</code></td><td>array of strings</td><td>The <code>id</code>s of the collections this event belongs to.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="timestamps">Timestamps</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>date</code></td><td>string</td><td><code>YYYY-MM-DD</code>.</td></tr>
+              <tr><td><code>time</code></td><td>string</td><td>24-hour <code>HH:MM</code>. <code>"00:00"</code> is treated as "no time set" when displayed.</td></tr>
+              <tr><td><code>tz</code></td><td>string</td><td>An IANA time zone name, such as <code>America/Vancouver</code>. An end timestamp with no <code>tz</code> uses the start's.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Dates and times are wall-clock values in the given zone, not UTC offsets. Values that don't match the expected pattern are kept as written, with a warning on load.</p>
+
+        <h3 id="geo">Coordinates</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>lat</code></td><td>number</td><td>Latitude, −90 to 90. Rounded to 5 decimal places.</td></tr>
+              <tr><td><code>lng</code></td><td>number</td><td>Longitude, −180 to 180. Rounded to 5 decimal places.</td></tr>
+              <tr><td><code>source</code></td><td>string</td><td>Optional. Where the point came from: <code>"search"</code> (looked up from the location text), <code>"map"</code> (picked on the map) or <code>"manual"</code> (typed). A missing value means <code>"manual"</code>. Only <code>"search"</code> coordinates are replaced by a later lookup without asking.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A <code>geo</code> that isn't a valid latitude/longitude pair is dropped.</p>
+
+        <h3 id="images">Image gallery</h3>
+        <p>Each item in an event's <code>images</code> array is one of two kinds.</p>
+        <pre><code>{ "id": "…", "kind": "embedded", "mediaId": "…", "caption": "Old town" }
+{ "id": "…", "kind": "link", "url": "https://example.com/photo.jpg", "caption": "" }</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>string</td><td>Unique gallery item id.</td></tr>
+              <tr><td><code>kind</code></td><td>string</td><td><code>"embedded"</code> or <code>"link"</code>.</td></tr>
+              <tr><td><code>mediaId</code></td><td>string</td><td>Embedded only. The <code>id</code> of an entry in the top-level <code>media</code> array. Items pointing at a missing entry are dropped.</td></tr>
+              <tr><td><code>url</code></td><td>string</td><td>Link only. Must be <code>http</code> or <code>https</code>.</td></tr>
+              <tr><td><code>caption</code></td><td>string</td><td>Optional caption; empty by default.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="fields">Custom fields</h3>
+        <pre><code>{ "id": "…", "key": "people", "label": "People", "type": "text", "value": "Sam, Alex" }</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>string</td><td>Unique field id.</td></tr>
+              <tr><td><code>key</code></td><td>string</td><td>Machine-friendly name. Built-in presets are <code>summary</code>, <code>people</code>, <code>organization</code>, <code>role</code>, <code>project</code>, <code>url</code> and <code>notes</code>; custom fields use a slug of their label.</td></tr>
+              <tr><td><code>label</code></td><td>string</td><td>Display label.</td></tr>
+              <tr><td><code>type</code></td><td>string</td><td><code>"text"</code> (the default) or <code>"url"</code>.</td></tr>
+              <tr><td><code>value</code></td><td>string</td><td>Always stored as text. Non-text values are converted to a string on load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="event-types">Event types</h2>
+        <pre><code>{ "value": "travel", "label": "Travel", "emoji": "✈️" }</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>value</code></td><td>string</td><td>A lowercase slug (<code>a-z</code>, <code>0-9</code>, single hyphens) that events refer to.</td></tr>
+              <tr><td><code>label</code></td><td>string</td><td>Display name.</td></tr>
+              <tr><td><code>emoji</code></td><td>string</td><td>Short icon, up to 16 characters. Defaults to 🏷️.</td></tr>
+              <tr><td><code>custom</code></td><td>boolean</td><td>Present and <code>true</code> on types the author added.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The built-in types are <code>misc</code> 📌, <code>life</code> ✨, <code>family</code> 👨‍👩‍👧‍👦, <code>friends</code> 🤝, <code>health</code> 🩺, <code>home</code> 🏠, <code>school</code> 🎓, <code>travel</code> ✈️ and <code>work</code> 💼. They are always available unless listed in <code>hiddenEventTypes</code>, and <code>misc</code> can't be hidden. A type still used by an event is never hidden.</p>
+
+        <h2 id="collections">Collections</h2>
+        <pre><code>{ "id": "681226a6-3692-496f-8318-bd806ea845ed", "kind": "collection", "title": "Germany trip" }</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>string</td><td>Unique collection id, referenced from events' <code>collectionIds</code>.</td></tr>
+              <tr><td><code>kind</code></td><td>string</td><td>Currently always <code>"collection"</code>.</td></tr>
+              <tr><td><code>title</code></td><td>string</td><td>Display name.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Collections that no event belongs to are left out when the file is saved.</p>
+
+        <h2 id="media">Media</h2>
+        <pre><code>{
+  "id": "…",
+  "kind": "image",
+  "mimeType": "image/jpeg",
+  "dataUrl": "data:image/jpeg;base64,/9j/4AAQ…",
+  "path": "",
+  "width": 1600,
+  "height": 1200,
+  "originalName": "IMG_0042.jpg",
+  "encodedAt": "2026-09-19T20:45:35.484Z"
+}</code></pre>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>string</td><td>Unique media id, referenced by embedded gallery items.</td></tr>
+              <tr><td><code>kind</code></td><td>string</td><td><code>"image"</code>.</td></tr>
+              <tr><td><code>mimeType</code></td><td>string</td><td><code>"image/jpeg"</code>. Only JPEG data URLs can be displayed.</td></tr>
+              <tr><td><code>dataUrl</code></td><td>string</td><td>The image itself as a <code>data:image/jpeg;base64,…</code> URL.</td></tr>
+              <tr><td><code>path</code></td><td>string</td><td>Reserved for a file path; empty when the image is embedded.</td></tr>
+              <tr><td><code>width</code>, <code>height</code></td><td>number</td><td>Pixel dimensions.</td></tr>
+              <tr><td><code>originalName</code></td><td>string</td><td>The source file's name, for reference.</td></tr>
+              <tr><td><code>encodedAt</code></td><td>string</td><td>ISO 8601 date-time the image was encoded.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Media that no gallery item references is left out when the file is saved.</p>
+
+        <h2>Compatibility</h2>
+        <ul>
+          <li><strong>Unknown keys are kept.</strong> Extra keys on the timeline, events, collections, event types, media, gallery items and fields survive a load and save, so you can add your own data.</li>
+          <li><strong>Lenient reading.</strong> Missing or malformed values are repaired with sensible defaults (a new id, <code>"misc"</code> for an unknown type, today's date for a missing date) and reported as warnings instead of failing the load. Only a file that isn't a timeline object, or has a different <code>format</code>, is rejected.</li>
+          <li><strong>Older versions load.</strong> Version 1 files (with <code>name</code>, <code>date</code>, <code>time</code> and <code>tz</code> directly on events) are migrated automatically, as are the type renames <code>education</code> → <code>school</code>, <code>move</code> → <code>home</code> and <code>job</code> → <code>work</code>.</li>
+          <li><strong>Newer versions load too.</strong> A file with a higher <code>version</code> loads with a warning; the fields this app knows are read and the rest are preserved.</li>
+        </ul>
+        <p>The reference implementation is <a href="https://github.com/kirk-the-jerk/Timeline/blob/main/src/timeline.js" target="_blank" rel="noopener">src/timeline.js</a>.</p>
+      </article>
+    </main>
+  </body>
+</html>

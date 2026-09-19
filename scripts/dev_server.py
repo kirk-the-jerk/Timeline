@@ -33,7 +33,7 @@ def main():
 
     if args.stop:
         stop_previous_server()
-        print("Stopped Timeline POC server.")
+        print("Stopped Timeline server.")
         return 0
 
     parser.print_help()
@@ -59,7 +59,7 @@ def restart_server():
         child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--serve"], **kwargs)
 
     if wait_until_ready(child):
-        print(f"Serving Timeline POC at http://{HOST}:{PORT}/")
+        print(f"Serving Timeline at http://{HOST}:{PORT}/")
         return 0
 
     if is_port_open():
@@ -86,7 +86,7 @@ def serve():
     try:
         ThreadingHTTPServer.allow_reuse_address = True
         with ThreadingHTTPServer((HOST, PORT), NoCacheHandler) as httpd:
-            print(f"Serving Timeline POC at http://{HOST}:{PORT}/", flush=True)
+            print(f"Serving Timeline at http://{HOST}:{PORT}/", flush=True)
             httpd.serve_forever()
     finally:
         remove_pid_file_for_current_process()

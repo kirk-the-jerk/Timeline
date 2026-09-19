@@ -1,48 +1,7 @@
-# Timeline POC — Evaluation and TODO
+# Timeline — TODO
 
-Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pass
-(see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. Done since: P1 confirmations
-(clear draft, delete event, import), the first two P4 bullets (placeholder players hidden), all of P8,
-P2 (export runtime extracted and tested), P3 (time ranges, schema v9, no-op migrations collapsed), the
-`timeline` and `slideshow` players, view-time filtering and the player switcher from P4, and most of P9. Everything else is still open.
-`python scripts/check_js.py` passes.
-
-## Framing: objectives vs. outcomes
-
-**Stated objective** (consistent across `README.md`, `AGENTS.md`, `index.html`): a local-first,
-dependency-free, private scrapbook/timeline. Drafts in IndexedDB, exports as portable artifacts.
-`index.html` sets the bar highest — *"Private timelines, portable forever."*
-
-**What got built:**
-
-| Concern | Lines | Share |
-|---|---|---|
-| Schema normalization/migration (`src/timeline.js`) | 1,126 | 34% |
-| Editor UI (`src/editor.js`) | 1,398 | 42% |
-| Export plumbing (`src/htmlExport.js`) | 579 | 17% |
-| **The viewing experience** (`src/playerRenderers.js`) | **137** | **4%** |
-
-8 schema versions, 7 migration functions, 64 diagnostic codes, unknown-field preservation, and a
-fixture suite — against one working player (a vertical event list) and three that render the literal
-string `"Timeline player placeholder"`.
-
-**Core critique — effort is inverted relative to risk.** The data format was the least uncertain part
-of this product and received a compatibility apparatus sized for a shipped product with an installed
-base (single user, single local draft, 22 commits, zero files in the wild). Two of the eight versions
-(`migrateV2ToV3`, `migrateV3ToV4`) change no data at all — they bump a number and log a warning. The
-most uncertain part — *does looking at one of these timelines feel good enough that anyone would build
-one?* — is 137 lines. "Portable forever" is currently underwritten by a format that migrates flawlessly
-into a view that doesn't exist yet.
-
-The engineering quality is high: consistent escaping, careful normalization, real diagnostics, no
-dependencies, clean module boundaries. The problem isn't craft, it's where the craft was spent.
-
-**The purpose is sound, and narrower than "a scrapbook app."** The defensible idea is the *artifact*:
-one dependency-free HTML file, no account, no server, openable in any browser in fifteen years.
-Competitors in this space are SaaS with a data-hostage problem. Everything below is ordered by how
-directly it serves that artifact.
-
----
+Backlog and history of the work so far. Checked items are done; unchecked items are open or
+deliberately deferred. `python scripts/check_js.py` passes.
 
 ## P1 — Data safety
 
@@ -133,7 +92,7 @@ Spec: [docs/players/map.md](docs/players/map.md). Read it and [docs/player-contr
 ## P5 — "Portable forever" vs. lossy-on-ingest images
 
 [encodeImageFile](src/editor.js#L1259-L1283) hard-caps every image at 960px and re-encodes at JPEG q0.72. The original
-is never retained anywhere. The UI does disclose this ("resized... with metadata removed") and for a POC
+is never retained anywhere. The UI does disclose this ("resized... with metadata removed") and for now
 the tradeoff is defensible — but a scrapbook built here is permanently lossy relative to the user's photo
 library. That's a preview, not an archive. Either the archival claim or the encoding needs to move.
 

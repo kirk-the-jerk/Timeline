@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Restart Timeline POC Server",
+            "label": "Restart Timeline Server",
             "type": "shell",
             "command": "python scripts/dev_server.py --restart",
             "problemMatcher": [],
@@ -12,7 +12,7 @@
             }
         },
         {
-            "label": "Stop Timeline POC Server",
+            "label": "Stop Timeline Server",
             "type": "shell",
             "command": "python scripts/dev_server.py --stop",
             "problemMatcher": [],

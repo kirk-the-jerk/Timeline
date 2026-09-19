@@ -1,80 +1,77 @@
-# Timeline POC
+# Timeline
 
-A small local-first proof of concept for a private scrapbook/timeline product.
+**Private timelines, portable forever.**
 
-This prototype is intentionally dependency-free:
+A local-first tool for creating simple life, travel, project, or career timelines that are easy to export and share. Nothing is stored online: timelines live in your browser and are imported and exported as files you control.
 
-- `index.html` is the product page.
-- `editor.html` creates, imports, exports, and locally saves a simple timeline.
-- `player.html` opens a timeline JSON file and displays its events.
-- `src/db.js` stores the active editor draft in IndexedDB, with timeline metadata and media in separate object stores.
-- `src/timeline.js` defines the shared timeline JSON shape.
+![Timeline preview](assets/timeline-preview.svg)
 
-## Documentation
+## What it does
 
-- [docs/player-contract.md](docs/player-contract.md): requirements for the standalone export and the rules every player follows.
-- [docs/players/](docs/players/): one behavior spec per player.
-- [todo.md](todo.md) is the backlog, and [CRITIQUE.md](CRITIQUE.md) is the product assessment.
+- **Local-first.** Drafts autosave in your browser (IndexedDB). There is no account and no server.
+- **Open format.** A timeline saves as a small, readable JSON file (`*.timeline.json`) that anyone can edit or build on. See [the format](#json-format).
+- **Shareable stand-alone playback.** Export a single `.timeline.html` file that plays your timeline with no server needed. Choose a player:
+  - **Simple:** a plain list of events.
+  - **Timeline:** a chart of events over time, with range bars, a date scrubber, search and filters.
+  - **Slideshow:** a full-screen photo slideshow with event details and auto-advance.
+  - **Map:** a map of events that have a location, with photos, collections and stepping from event to event.
+- **Photos and places.** Attach photos and a location to any event. The editor can look up coordinates for a place name, or you can pick a point on the map.
+- **Flexible.** Embed photos in the file or link them by URL. Sort events into categories with your own labels and emoji, group them into collections, span a range of time, and add custom fields to any event.
 
-## Run Locally
+The map player and the coordinate lookup need internet access, to load map tiles and search for places (OpenStreetMap, Nominatim and Photon, plus optional Esri and VersaTiles imagery). Everything else works offline.
 
-From this folder:
+## Run locally
+
+There is no build step and no npm dependencies. You need Python (for a static file server) and a modern browser.
+
+```sh
+python scripts/dev_server.py --restart
+```
+
+or:
 
 ```sh
 python -m http.server 8000 --bind 127.0.0.1
 ```
 
-Then open:
+Then open <http://127.0.0.1:8000/>. The editor uses browser IndexedDB, so run it through a local server instead of opening the files directly. Exported `.timeline.html` files can be opened straight from disk.
 
-```text
-http://127.0.0.1:8000/
-```
+## Try it
 
-The editor uses browser IndexedDB, so it is best to run through a local server instead of opening the files directly.
+1. Open `editor.html` and add a few events.
+2. **Save to JSON** for an editable backup, or **Save to HTML** for a stand-alone viewer that embeds the player, the timeline and any photos.
+3. Open `player.html` and pick or drop a `.timeline.json` file to view it.
 
-## Check JavaScript and Schema Fixtures
+## Project layout
 
-Run:
+- `index.html` is the product page, and `json-format.html` documents the file format.
+- `editor.html` creates, imports and exports timelines.
+- `player.html` opens a timeline JSON file and plays it.
+- `src/timeline.js` defines and validates the shared timeline schema.
+- `src/db.js` stores the active editor draft in IndexedDB.
+- `src/*Player.js`, `src/*Model.js` and `src/htmlExport.js` hold the players and the stand-alone export.
+- `vendor/leaflet/` is a vendored copy of [Leaflet](https://leafletjs.com/), used by the map player.
+- `scripts/` holds the dev server and the checks; `tests/fixtures/` holds schema fixtures.
+
+## Documentation
+
+- [docs/player-contract.md](docs/player-contract.md): requirements for the stand-alone export and the rules every player follows. Read this before writing your own player.
+- [docs/players/](docs/players/): one behavior spec per player.
+- [todo.md](todo.md) is the backlog.
+
+## Check JavaScript and schema fixtures
 
 ```sh
 python scripts/check_js.py
 ```
 
-The checker uses `node --check` for the browser JavaScript files, then runs schema compatibility fixture tests. It first looks for `node` on PATH, then falls back to the standard Windows Node install at `/mnt/c/Program Files/nodejs/node.exe` when running from WSL.
+The checker runs `node --check` on the browser JavaScript, then the schema, export, map, slideshow and layout tests. It needs `node` on PATH (or the standard Windows Node install when run from WSL).
 
-## Basic Test Flow
+## JSON format
 
-1. Open `http://127.0.0.1:8000/editor.html`.
-2. Add a few dummy events.
-3. Click **Save to JSON** for an editable backup/debug file.
-4. Click **Save to HTML** for a standalone timeline viewer that embeds the player and timeline data.
-5. Open `http://127.0.0.1:8000/player.html`.
-6. Pick or drop the exported `.timeline.json` file.
+Timelines use format `local-timeline-poc`, currently schema version `10`. Field-by-field documentation is in [json-format.html](json-format.html) (open it from the running app), and the reference implementation is [src/timeline.js](src/timeline.js).
 
-The exported `.timeline.html` file can be opened directly in a browser. It contains its own CSS, player script, timeline JSON, and any embedded low-resolution JPEG images.
-
-## Schema Compatibility
-
-Current exports use schema version `10`.
-
-- Version 1-style events with `name` and `date` are migrated on import.
-- Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
-- Version 4 stores event image galleries in `events[].images[]`. Embedded image bytes live in top-level `media[]`; linked images store their URL directly in the gallery item.
-- Version 5 stores event type labels and emoji in top-level `eventTypes[]`. Event records keep the stable `type` slug.
-- Version 6 adds top-level `collections[]` (each with an `id`, `kind`, and `title`). Events reference collections by id in `events[].collectionIds[]`.
-- Version 7 renames the built-in event types `education` to `school` and `move` to `home`, in both `eventTypes[]` and `events[].type`.
-- Version 8 renames the built-in event type `job` to `work`, in both `eventTypes[]` and `events[].type`.
-- Version 9 adds an optional `events[].endTimestamp` (same `date` / `time` / `tz` shape as `timestamp`) for events that span a range, such as "lived in Vancouver 2015-2020". It is omitted for point-in-time events. An end that is earlier than the start, or has no date, is dropped with a warning on import.
-- Also under version 9, an optional top-level `hiddenEventTypes[]` lists built-in event type slugs (never `misc`) left out of `eventTypes[]`. Without it, every built-in type is present. A type that an event still uses is never hidden.
-- Version 10 adds an optional `events[].geo` (`{ "lat", "lng", "source" }`) for events that have a place on a map. `lat` (-90 to 90) and `lng` (-180 to 180) are numbers, kept to 5 decimal places. `source` is `"search"` (filled in by the editor's online lookup), `"map"` or `"manual"`; a missing or unknown one counts as `"manual"`. `location` stays as the human-readable label. A `geo` that isn't a valid point is dropped with a warning and the event loads without it. Version 9 files load unchanged, with no migration warning. The editor sets `geo` on the Location row, and the Map player draws it.
-- Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
-- Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
-
-Uploaded images are previews, not archives: each is resized to at most 960px and re-encoded as JPEG (quality 0.72) with metadata removed, and the original is not kept. For full quality, link the image by URL instead of uploading it (see the note on linked images in the save dialog).
-
-In IndexedDB, the active draft stores the timeline document and media records separately. Media bytes are stored as Blobs there and are converted back to data URLs when the draft loads. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
-
-## JSON Shape
+### Example
 
 ```json
 {
@@ -155,27 +152,24 @@ In IndexedDB, the active draft stores the timeline document and media records se
 }
 ```
 
-## VS Code Debugging
+### Compatibility
 
-Use the built-in terminal to run the local server, then debug in your normal browser with DevTools.
+Current exports use schema version `10`.
 
-For IndexedDB inspection in Chrome or Edge:
+- Optional `events[].endTimestamp` (same `date` / `time` / `tz` shape as `timestamp`) marks events that span a range, such as "lived in Vancouver 2015-2020". An end that is earlier than the start, or has no date, is dropped with a warning on import.
+- Optional `events[].geo` (`{ "lat", "lng", "source" }`) gives an event a place on the map. `lat` (-90 to 90) and `lng` (-180 to 180) are numbers, kept to 5 decimal places. `source` is `"search"` (filled in by the editor's online lookup), `"map"` or `"manual"`; a missing or unknown one counts as `"manual"`. `location` stays as the human-readable label. A `geo` that isn't a valid point is dropped with a warning.
+- Optional top-level `hiddenEventTypes[]` lists built-in event type slugs (never `misc`) left out of `eventTypes[]`. Without it, every built-in type is present. A type that an event still uses is never hidden.
+- Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
+- Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
-1. Open DevTools.
-2. Go to **Application**.
-3. Open **Storage > IndexedDB**.
-4. Look for the `timeline-poc` database.
+Uploaded images are previews, not archives: each is resized to at most 960px and re-encoded as JPEG (quality 0.72) with metadata removed, and the original is not kept. For full quality, link the image by URL instead of uploading it (see the note on linked images in the save dialog).
 
-## GitHub From VS Code
+In IndexedDB, the active draft stores the timeline document and media records separately. Media bytes are stored as Blobs there and are converted back to data URLs when the draft loads. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
 
-Recommended first-time flow:
+## Debugging
 
-1. Install Git for Windows if VS Code does not detect Git.
-2. Sign in to GitHub from VS Code using the Accounts icon in the lower-left corner.
-3. Open the Source Control panel.
-4. Review changed files before committing.
-5. Write a short commit message, for example `Initial timeline proof of concept`.
-6. Click **Commit**.
-7. Use **Publish Branch** to create the GitHub repository.
+Debug in your normal browser with DevTools. To inspect the draft in Chrome or Edge, open DevTools, go to **Application > Storage > IndexedDB**, and look for the `timeline-poc` database.
 
-Avoid committing browser downloads, exported timelines with private data, or large media files unless you intend to share them.
+## Privacy
+
+Avoid committing exported timelines with private data, browser downloads, or large media files. `*.timeline.json`, `*.timeline.html` and the `examples/` folder are git-ignored for this reason.
