@@ -2,29 +2,36 @@ export const PLAYER_TYPES = [
   {
     value: "simple",
     label: "Simple",
-    description: "Basic event-list player."
+    description: "Basic event-list player.",
+    available: true
   },
   {
     value: "timeline",
     label: "Timeline",
-    description: "Timeline player placeholder."
+    description: "Timeline player placeholder.",
+    available: false
   },
   {
     value: "slideshow",
     label: "Slideshow",
-    description: "Slideshow player placeholder."
+    description: "Slideshow player placeholder.",
+    available: false
   },
   {
     value: "map",
     label: "Map",
-    description: "Map player placeholder."
+    description: "Map player placeholder.",
+    available: false
   }
 ];
 
 export const DEFAULT_PLAYER_TYPE = "simple";
 
+// Unfinished players stay listed (so the export dialog can show them as coming
+// soon) but never resolve, so a hand-typed ?player= URL or a stale value falls
+// back to the default instead of rendering a placeholder.
 export function normalizePlayerType(value) {
-  return PLAYER_TYPES.some((player) => player.value === value) ? value : DEFAULT_PLAYER_TYPE;
+  return PLAYER_TYPES.some((player) => player.available && player.value === value) ? value : DEFAULT_PLAYER_TYPE;
 }
 
 export function getPlayerType(value) {

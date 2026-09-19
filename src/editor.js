@@ -861,7 +861,9 @@ function populateFieldPresets() {
 
 function populateHtmlPlayerTypes() {
   htmlPlayerTypeInput.innerHTML = PLAYER_TYPES
-    .map((player) => `<option value="${escapeHtml(player.value)}">${escapeHtml(player.label)} - ${escapeHtml(player.description)}</option>`)
+    .map((player) => player.available
+      ? `<option value="${escapeHtml(player.value)}">${escapeHtml(player.label)} - ${escapeHtml(player.description)}</option>`
+      : `<option value="${escapeHtml(player.value)}" disabled>${escapeHtml(player.label)} - coming soon</option>`)
     .join("");
 }
 

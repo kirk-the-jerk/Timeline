@@ -95,8 +95,8 @@ as real, selectable export options ([editor.html:301-304](editor.html#L301-L304)
 `.timeline.html` whose entire content is the word "placeholder." ZIP and HTML+images are correctly
 `disabled` in the same dialog — the project knows how to gate unfinished work and didn't apply it here.
 
-- [ ] Disable or remove the placeholder players in the export dialog, matching how ZIP / HTML+images are handled.
-- [ ] Remove the placeholder entries from the nav dropdowns in [index.html](index.html), [editor.html](editor.html), and [player.html](player.html).
+- [x] Disable or remove the placeholder players in the export dialog, matching how ZIP / HTML+images are handled. Done via an `available` flag in [src/players.js](src/players.js); unfinished players show as disabled "coming soon" options, and `normalizePlayerType` falls back to Simple for them. Flip the flag when a real player lands.
+- [x] Remove the placeholder entries from the nav dropdowns in [index.html](index.html) and [editor.html](editor.html). (`player.html` never had a dropdown.) With one working player, the dropdowns became plain **Player** links. Restore a dropdown when a second player ships.
 - [ ] Build the `timeline` player for real — range bars (needs P3) and a date scrubber. This is the hypothesis the whole project exists to test.
 - [ ] **Add view-time search/filter.** Filtering exists only at *export* time. At 200 events both the editor list and the player are unbroken walls. A date-range scrubber plus type/collection toggles is cheap, and it is what makes the artifact feel like a product rather than a dump.
 
