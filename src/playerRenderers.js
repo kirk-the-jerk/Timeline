@@ -1,4 +1,5 @@
 import { escapeHtml, renderEventListItem } from "./eventCard.js";
+import { renderMapPlayer } from "./mapPlayer.js";
 import { renderSlideshowPlayer } from "./slideshowPlayer.js";
 import { renderTimelinePlayer } from "./timelinePlayer.js";
 
@@ -6,7 +7,7 @@ export const PLAYER_RENDERERS = {
   simple: renderSimplePlayer,
   timeline: renderTimelinePlayer,
   slideshow: renderSlideshowPlayer,
-  map: renderPlaceholderPlayer
+  map: renderMapPlayer
 };
 
 // A renderer may return { destroy() } to undo whatever it set up beyond the

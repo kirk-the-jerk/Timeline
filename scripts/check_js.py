@@ -22,6 +22,9 @@ JS_FILES = [
     "src/slideshowModel.js",
     "src/slideshowChrome.js",
     "src/slideshowPlayer.js",
+    "src/mapTiles.js",
+    "src/mapModel.js",
+    "src/mapPlayer.js",
     "src/editor.js",
     "src/player.js",
     "src/htmlExport.js",
@@ -34,6 +37,7 @@ JS_FILES = [
     "scripts/check_media_blob.mjs",
     "scripts/check_timeline_layout.mjs",
     "scripts/check_slideshow.mjs",
+    "scripts/check_map.mjs",
 ]
 WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
 
@@ -55,7 +59,7 @@ def main():
             failures += 1
 
     if failures == 0:
-        for script in ("scripts/check_schema.mjs", "scripts/check_coords.mjs", "scripts/check_geocode.mjs", "scripts/check_export.mjs", "scripts/check_media_blob.mjs", "scripts/check_timeline_layout.mjs", "scripts/check_slideshow.mjs"):
+        for script in ("scripts/check_schema.mjs", "scripts/check_coords.mjs", "scripts/check_geocode.mjs", "scripts/check_export.mjs", "scripts/check_media_blob.mjs", "scripts/check_timeline_layout.mjs", "scripts/check_slideshow.mjs", "scripts/check_map.mjs"):
             result = subprocess.run([str(node), node_readable_path(node, ROOT / script)], cwd=ROOT)
             if result.returncode != 0:
                 failures += 1

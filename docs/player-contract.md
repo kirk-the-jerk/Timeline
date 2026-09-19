@@ -3,7 +3,7 @@
 What every player, and the standalone export that carries it, must do. Per-player behavior lives in
 [players/](players/). Schema and JSON shape live in [../README.md](../README.md).
 
-Status as of schema v10. Sections say **Must** for a rule new work has to keep, and **As built** for
+Status as of schema v10 and the Map player (without its tour). Sections say **Must** for a rule new work has to keep, and **As built** for
 what the code does today. **Gap** marks somewhere the two differ, or where nothing has been decided.
 
 ## 1. The product promise
@@ -11,12 +11,15 @@ what the code does today. **Gap** marks somewhere the two differ, or where nothi
 The artifact is one `.timeline.html` file that:
 
 - opens in a browser by double-click (`file://`), with no server, account or install;
-- needs no network to render, apart from images the author chose to link (see 3.4);
+- needs no network to render, apart from images the author chose to link, and map tiles when the author chose the Map player (see 2.6 and 3.2);
 - contains everything: the timeline data, the player code and the styles;
 - can be loaded back into the app, losslessly.
 
 Everything below serves that. A feature that only works from a server, or that needs a network
-request to render, breaks the promise.
+request to render, breaks the promise. The one deliberate exception is the Map player, whose tiles
+come from a tile server: the author accepts that by choosing it. A player that needs the network must
+still degrade to something usable without it (the map shows its dots, lines and panels on a plain
+background).
 
 ## 2. The standalone export
 
@@ -28,12 +31,13 @@ Built by `buildStandaloneHtml` in [../src/htmlExport.js](../src/htmlExport.js):
 |---|---|---|
 | Timeline data | `<script type="application/json" id="timeline-data">` | The full normalized timeline, including `media[]`. Every `<` is written as the JSON escape for U+003C, so data can't close the `<script>` tag. |
 | Player choice | `<script type="application/json" id="player-data">` | The player descriptor from `players.js` (`value`, `label`, ...). |
-| Styles | one `<style>` | `standaloneCss()` plus each player's CSS file ([../src/timelinePlayer.css](../src/timelinePlayer.css), [../src/slideshowPlayer.css](../src/slideshowPlayer.css)), listed in `PLAYER_CSS_URLS`. |
+| Styles | one `<style>` | `standaloneCss()` plus each player's CSS file ([../src/timelinePlayer.css](../src/timelinePlayer.css), [../src/slideshowPlayer.css](../src/slideshowPlayer.css), [../src/mapPlayer.css](../src/mapPlayer.css)), listed in `PLAYER_CSS_URLS`. |
+| Vendored library | one classic `<script>`, before the runtime | **Map player only.** Leaflet (`vendor/leaflet/leaflet.js`), with its stylesheet ahead of the other styles. See 3.6. |
 | Runtime | one classic `<script>` | [../src/exportRuntime.js](../src/exportRuntime.js) and its imports, bundled by [../src/exportBundle.js](../src/exportBundle.js). |
 
 **Must:**
-- Contain no external script, stylesheet, font or image URL that the author didn't choose (linked images excepted).
-- Render from the embedded data alone. Nothing may be fetched.
+- Contain no external script, stylesheet, font or image URL that the author didn't choose (linked images excepted; map tiles are requested at run time, not written into the file).
+- Render from the embedded data alone. Nothing may be fetched, apart from the map tiles the Map player asks its library for (3.2).
 - Keep `#timeline-data` and `#timeline-title` / `#timeline-summary` / `#timeline` as the ids the runtime and the importer rely on.
 
 ### 2.2 Round trip
@@ -77,7 +81,8 @@ The viewer of the exported file gets no control over any of this.
 
 Linked images (`kind: "link"`) are kept as bare URLs. Opening the file loads them from their hosts.
 The save dialog warns about this, naming the hosts. Uploaded images are embedded as JPEG data URLs
-(see the README for the size cap).
+(see the README for the size cap). **Gap:** when Map is chosen the dialog should also name the tile hosts
+(`tile.openstreetmap.org`, `server.arcgisonline.com`). It doesn't yet.
 
 ## 3. Renderer contract
 
@@ -112,7 +117,7 @@ The export renders once and never destroys.
 - **Escape every user string.** Use `escapeHtml` from [../src/eventCard.js](../src/eventCard.js) for anything put into `innerHTML`. Titles, locations, field values, captions and collection names are all user text.
 - **Take images only from `resolveEventImages`, filtered by `canRenderImageMedia` for embedded ones.** That is what keeps `javascript:` and non-JPEG sources out. Skip an image that fails the check, silently.
 - **Not mutate** `timeline` or `events`.
-- **Not touch the network.**
+- **Not touch the network.** One exception: the Map player's tiles, only through the vendored map library and only from the source list in [../src/mapTiles.js](../src/mapTiles.js). The player never geocodes.
 - **Work without a frame around it.** The same code runs in `player.html` as an ES module and in the export as one classic script. A player must not assume nav, the load dialog or a particular container width.
 - **Clean up after itself.** `player.html` calls the renderer again on the same container when the player is switched or a new file is loaded, after clearing the container's children. Anything the renderer set up beyond those children must be undone in `destroy()`: classes added to `container`, observers, timers, listeners on `document` or `window`, and elements appended elsewhere in the page.
 - **Own anything it puts outside `container`.** The slideshow's stage is a full-viewport overlay appended to `<body>`. It, its document listeners and any page-level class (`ss-lock` on `<html>`) are removed by `destroy()`. It also must give the user a way back out (Exit, Esc), since it hides the page's own controls.
@@ -138,6 +143,21 @@ The export bundler is deliberately small and rejects what it doesn't understand,
 A player with `available: false` shows as "coming soon" in the export dialog, is missing from the nav menu, and
 can't be selected by URL. Flip it to `true` when the renderer works.
 
+### 3.6 Vendored libraries
+
+A player may depend on a third-party library only if all of this holds:
+
+- It is copied into `vendor/<name>/` at a pinned version, with its licence, and nothing is loaded from a CDN.
+- It is a classic script (not an ES module), so it stays out of the bundler. `player.html` loads it with a
+  `<script>` tag; the export inlines it in its own `<script>` block ahead of the runtime, and its CSS in the
+  `<style>`, **only when that player is chosen**, so other exports don't grow.
+- The exporter escapes `</script` in the library text, and drops every `url()` from the inlined CSS, so the file
+  carries no reference to a file it doesn't contain. `check_export.mjs` asserts both.
+- The player reaches it as a global and copes with it being missing (the Map says "The map library didn't load").
+- It is left out of the `check_js.py` syntax check.
+
+Today that is Leaflet 1.9.4 for the Map player.
+
 ## 4. Adding a player
 
 1. Add the renderer module and register it in `PLAYER_RENDERERS`.
@@ -154,12 +174,12 @@ can't be selected by URL. Flip it to `true` when the renderer works.
 | Concern | State |
 |---|---|
 | Works from `file://` | Yes, by design. |
-| Keyboard | Simple and Timeline: native controls only. Slideshow: Space, arrows, Home/End, F, H and Esc (see its spec). |
+| Keyboard | Simple and Timeline: native controls only. Slideshow: Space, arrows, Home/End, F, H and Esc (see its spec). Map: arrows, L, D, F and Esc (see its spec). |
 | Screen readers | The timeline player has a live status region. Otherwise unspecified. |
-| Reduced motion | Slideshow: no fades or transitions. The timeline player still scrolls smoothly on mark click. |
+| Reduced motion | Slideshow: no fades or transitions. Map: the camera jumps instead of flying. The timeline player still scrolls smoothly on mark click. |
 | Dark mode | None. The export forces `color-scheme: light`. |
 | Print | No `@media print` rules anywhere. |
-| Mobile | One breakpoint at 760px (the date column stacks above the card). Otherwise the app's layout is desktop-shaped. The slideshow stage handles tap and swipe. |
+| Mobile | One breakpoint at 760px (the date column stacks above the card). Otherwise the app's layout is desktop-shaped. The slideshow stage handles tap and swipe. The map's flyouts become full-width sheets, one at a time. |
 | Time zones | Shown neither in the card date nor on the chart. Ordering is by wall-clock text. See 6. |
 
 **Gap:** none of these has been set as a requirement across players. The slideshow answered keyboard, motion

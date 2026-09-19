@@ -20,8 +20,8 @@ export const PLAYER_TYPES = [
   {
     value: "map",
     label: "Map",
-    description: "Map player placeholder.",
-    available: false
+    description: "Map of the events that have a location, with collections, photos and stepping from event to event.",
+    available: true
   }
 ];
 

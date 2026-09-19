@@ -1,0 +1,713 @@
+/* Styles for the map player (src/mapPlayer.js). Shared by player.html, which links
+   it, and the standalone export, which inlines it. Leaflet's own stylesheet is
+   separate (vendor/leaflet/leaflet.css). */
+
+.timeline.map-mode {
+  display: block;
+}
+
+.timeline.map-mode::before {
+  display: none;
+}
+
+/* ---- Launcher (in the page) ---- */
+
+.mp-setup {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  border: 1px solid var(--line, #d7d3c8);
+  border-radius: 8px;
+  background: var(--panel, #ffffff);
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.mp-setup-lead {
+  margin: 0;
+  color: var(--text, #222222);
+  font-size: clamp(1.3rem, 3vw, 1.9rem);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.mp-setup-detail,
+.mp-setup-note,
+.mp-hint {
+  margin: 0;
+  color: var(--muted, #666666);
+}
+
+.mp-hint {
+  font-size: 0.86rem;
+}
+
+.mp-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent, #2f6f68);
+  color: #ffffff;
+  padding: 12px 26px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mp-open:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mp-open .mp-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---- Stage ---- */
+
+html.mp-lock {
+  overflow: hidden;
+}
+
+.mp-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg, #f6f4ef);
+  color: var(--text, #222222);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.mp-stage [hidden] {
+  display: none !important;
+}
+
+.mp-stage button,
+.mp-stage select,
+.mp-stage summary {
+  font: inherit;
+}
+
+.mp-missing {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  height: 100%;
+}
+
+.mp-body {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.mp-mapwrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mp-map {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  background: #e6e3da;
+  font: inherit;
+}
+
+.mp-tiles-note {
+  position: absolute;
+  right: 0;
+  bottom: 24px;
+  z-index: 10;
+  border-radius: 4px 0 0 4px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--muted, #666666);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.mp-announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ---- Buttons on the map ---- */
+
+.mp-icon-btn,
+.mp-step,
+.mp-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line, #d7d3c8);
+  background: var(--panel, #ffffff);
+  color: var(--text, #222222);
+  cursor: pointer;
+}
+
+.mp-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  padding: 0;
+}
+
+.mp-icon-btn[aria-pressed="true"] {
+  background: var(--accent, #2f6f68);
+  border-color: var(--accent, #2f6f68);
+  color: #ffffff;
+}
+
+.mp-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.mp-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+}
+
+.mp-tab {
+  position: absolute;
+  top: 50%;
+  z-index: 15;
+  width: 32px;
+  height: 56px;
+  margin-top: -28px;
+  padding: 0;
+}
+
+.mp-tab-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.mp-tab-right {
+  right: 0;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+}
+
+.mp-transport {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line, #d7d3c8);
+  border-radius: 999px;
+  background: var(--panel, #ffffff);
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.mp-step {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.mp-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mp-count {
+  min-width: 5.5em;
+  padding: 0 4px;
+  color: var(--muted, #666666);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---- Flyouts ---- */
+
+.mp-panel {
+  display: none;
+  flex-direction: column;
+  width: 340px;
+  max-width: 100%;
+  background: var(--panel, #ffffff);
+  border: 0 solid var(--line, #d7d3c8);
+}
+
+.mp-panel.is-open {
+  display: flex;
+}
+
+.mp-left {
+  border-right-width: 1px;
+}
+
+.mp-right {
+  border-left-width: 1px;
+}
+
+/* Unpinned: floats over the map. Pinned: takes its place beside it. */
+.mp-panel.is-open:not(.is-docked) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.25);
+}
+
+.mp-left.is-open:not(.is-docked) {
+  left: 0;
+}
+
+.mp-right.is-open:not(.is-docked) {
+  right: 0;
+}
+
+.mp-panel.is-docked {
+  position: relative;
+  flex: 0 0 340px;
+}
+
+.mp-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line, #d7d3c8);
+  padding: 10px 12px;
+}
+
+.mp-panel-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* The full-screen and exit buttons float above the right flyout. */
+.mp-right.is-open:not(.is-docked) .mp-panel-head {
+  padding-right: 92px;
+}
+
+.mp-head-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mp-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.mp-panel-body h3 {
+  margin: 14px 0 6px;
+  font-size: 0.85rem;
+  color: var(--muted, #666666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mp-scopes {
+  display: grid;
+  gap: 4px;
+}
+
+.mp-scope,
+.mp-row,
+.mp-shared-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mp-scope:hover,
+.mp-row:hover,
+.mp-shared-row:hover {
+  background: var(--panel-soft, #f3f1ea);
+}
+
+.mp-scope[aria-pressed="true"],
+.mp-row.is-selected,
+.mp-shared-row.is-selected {
+  border-color: var(--accent, #2f6f68);
+  background: var(--panel-soft, #f3f1ea);
+  font-weight: 700;
+}
+
+.mp-scope-count {
+  color: var(--muted, #666666);
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mp-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.mp-row-date {
+  color: var(--muted, #666666);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.mp-settings {
+  margin-top: 12px;
+  border: 1px solid var(--line, #d7d3c8);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.mp-settings summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.mp-field,
+.mp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mp-field select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mp-swatches {
+  display: flex;
+  gap: 8px;
+}
+
+.mp-swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  padding: 0;
+  box-shadow: 0 0 0 1px var(--line, #d7d3c8);
+  cursor: pointer;
+}
+
+.mp-swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px var(--text, #222222);
+}
+
+.mp-lines-hint {
+  margin: 4px 0 0;
+  color: var(--muted, #666666);
+  font-size: 0.8rem;
+}
+
+/* ---- Details ---- */
+
+.mp-empty {
+  margin: 24px 0;
+  color: var(--muted, #666666);
+  text-align: center;
+}
+
+.mp-event-title {
+  margin: 4px 0 8px;
+  color: var(--text, #222222);
+  font-size: 1.2rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.mp-panel-body h3.mp-event-title {
+  color: var(--text, #222222);
+  font-size: 1.2rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.mp-shared {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line, #d7d3c8);
+  padding-bottom: 10px;
+}
+
+.mp-shared-title {
+  color: var(--muted, #666666);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.mp-fields {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.mp-fields div {
+  display: grid;
+  grid-template-columns: minmax(80px, 110px) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.mp-fields dt {
+  color: var(--muted, #666666);
+  font-weight: 700;
+}
+
+.mp-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mp-photos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.mp-photo {
+  border: 1px solid var(--line, #d7d3c8);
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.mp-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+/* ---- Lightbox ---- */
+
+.mp-lightbox {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.88);
+  padding: 16px;
+}
+
+.mp-lightbox-figure {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  color: #f0eee8;
+  text-align: center;
+}
+
+.mp-lightbox-image {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 110px);
+  object-fit: contain;
+}
+
+.mp-lightbox-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.mp-lightbox-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.mp-lightbox-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+/* ---- Dots, numbers, arrows (Leaflet divIcons) ---- */
+
+.mp-dot-box,
+.mp-arrow-box {
+  background: none;
+  border: 0;
+}
+
+.mp-dot-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mp-dot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--mp-edge, #ffffff);
+  border-radius: 50%;
+  background: var(--mp-color, #2f6f68);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  color: var(--mp-ink, #ffffff);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mp-dot.has-label {
+  min-width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  padding: 0 4px;
+}
+
+.mp-dot.is-selected {
+  width: 30px;
+  height: 30px;
+  box-shadow: 0 0 0 4px var(--mp-color, #2f6f68), 0 1px 7px rgba(0, 0, 0, 0.55);
+}
+
+.mp-dot.has-label.is-selected {
+  min-width: 36px;
+  height: 36px;
+  border-radius: 18px;
+}
+
+.mp-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  border: 2px solid var(--mp-strong, #2f6f68);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--mp-strong, #2f6f68);
+  padding: 0 3px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+}
+
+.mp-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.mp-arrow::before {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 15px solid var(--mp-color, #2f6f68);
+  filter: drop-shadow(0 0 1.5px var(--mp-edge, #ffffff)) drop-shadow(0 0 1px var(--mp-edge, #ffffff));
+}
+
+/* ---- Narrow screens: one flyout at a time, as a full-width sheet ---- */
+
+@media (max-width: 759px) {
+  .mp-panel.is-open .mp-panel-head {
+    padding-right: 92px;
+  }
+
+  .mp-panel.is-open {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    box-shadow: none;
+  }
+
+  .mp-tab {
+    width: 36px;
+    height: 48px;
+    margin-top: -24px;
+  }
+
+  .mp-count {
+    min-width: 4.5em;
+  }
+
+  .mp-lightbox {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .mp-lightbox-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-stage * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

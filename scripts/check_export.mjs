@@ -5,7 +5,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { bundleModules } from "../src/exportBundle.js";
-import { EXPORT_RUNTIME_URL, PLAYER_CSS_URLS, buildStandaloneHtml } from "../src/htmlExport.js";
+import {
+  EXPORT_RUNTIME_URL,
+  LEAFLET_CSS_URL,
+  LEAFLET_JS_URL,
+  PLAYER_CSS_URLS,
+  buildStandaloneHtml,
+  escapeScriptText,
+  stripCssUrls
+} from "../src/htmlExport.js";
 import { PLAYER_RENDERERS, renderPlayer } from "../src/playerRenderers.js";
 import { normalizeTimeline } from "../src/timeline.js";
 
@@ -19,6 +27,7 @@ const readFromDisk = async (url) => readFileSync(fileURLToPath(url), "utf8");
 async function main() {
   await checkExportRoundTrip();
   await checkTimelinePlayerExport();
+  await checkMapExport();
   await checkBundlerRejectsUnsafeInput();
   checkRendererHandle();
   console.log("OK export runtime");
@@ -90,7 +99,8 @@ async function checkTimelinePlayerExport() {
 
   for (const [player, styleMarker, renderer] of [
     ["timeline", ".tl-player", "renderTimelinePlayer"],
-    ["slideshow", ".ss-stage", "renderSlideshowPlayer"]
+    ["slideshow", ".ss-stage", "renderSlideshowPlayer"],
+    ["map", ".mp-stage", "renderMapPlayer"]
   ]) {
     const html = buildStandaloneHtml(timeline, player, runtime, playerCss);
     assert.equal(JSON.parse(html.match(/id="player-data">([\s\S]*?)<\/script>/)[1]).value, player);
@@ -99,6 +109,43 @@ async function checkTimelinePlayerExport() {
     assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: `export-runtime-${player}.js` }));
     assert.ok(runtimeSource.includes(renderer), `${player} renderer is bundled`);
   }
+}
+
+// Leaflet is a classic script that rides along only with the Map player: inlined
+// ahead of the runtime, its stylesheet stripped of image references, and unable
+// to close its own <script> tag. Every other player's export is left as it was.
+async function checkMapExport() {
+  const timeline = makeTimeline();
+  const runtime = await bundleModules(EXPORT_RUNTIME_URL, readFromDisk);
+  const playerCss = (await Promise.all(PLAYER_CSS_URLS.map(readFromDisk))).join("\n");
+  const vendor = { js: await readFromDisk(LEAFLET_JS_URL), css: await readFromDisk(LEAFLET_CSS_URL) };
+  assert.ok(vendor.css.includes("url("), "the vendored stylesheet does reference images, so stripping has something to do");
+
+  const html = buildStandaloneHtml(timeline, "map", runtime, playerCss, vendor);
+  const scripts = [...html.matchAll(/<script(?: type="application\/json" id="[^"]+")?>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  assert.equal(scripts.length, 4, "data, player, Leaflet and the runtime");
+  const [, , leafletSource, runtimeSource] = scripts;
+  assert.ok(html.indexOf(leafletSource.slice(0, 80)) < html.indexOf(runtimeSource.slice(0, 80)), "Leaflet comes before the runtime");
+  assert.ok(leafletSource.includes("Leaflet 1.9.4"), "the pinned version is the one inlined");
+  assert.doesNotThrow(() => new vm.Script(leafletSource, { filename: "leaflet.js" }), "inlined Leaflet is valid JavaScript");
+  assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: "export-runtime-map.js" }));
+
+  const style = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+  assert.ok(style.includes(".leaflet-container"), "Leaflet's stylesheet is inlined");
+  assert.ok(style.includes(".mp-stage"), "the map player's styles are inlined");
+  assert.ok(!style.includes("url("), "no url() is left in the inlined styles");
+  assert.ok(!/https?:\/\/[^"'\s)]*\.(png|gif|svg)/.test(style), "no image URL is left in the styles");
+
+  assert.equal(stripCssUrls("a{background:url(x.png);color:red}"), "a{color:red}");
+  assert.equal(stripCssUrls(".lvml{behavior:url(#default#VML);}"), ".lvml{}");
+  assert.equal(escapeScriptText('var s="</script><script>";'), 'var s="<\\/script><script>";');
+  const hostile = buildStandaloneHtml(timeline, "map", runtime, playerCss, { js: 'var s = "</script><b>";', css: "" });
+  assert.equal([...hostile.matchAll(/<script/g)].length, 4, "library text can't add or close a script element");
+
+  const withoutVendor = buildStandaloneHtml(timeline, "slideshow", runtime, playerCss);
+  const withVendor = buildStandaloneHtml(timeline, "slideshow", runtime, playerCss, vendor);
+  assert.equal(withVendor, withoutVendor, "other players never carry Leaflet, even if it is offered");
+  assert.ok(!withoutVendor.includes("Leaflet 1.9.4"));
 }
 
 async function checkBundlerRejectsUnsafeInput() {

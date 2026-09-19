@@ -1,10 +1,15 @@
 # Map player
 
-**Status: section 1 is built; the player is not.** Built: schema v10 `geo`, the editor's Coordinates row
-(online lookup with consent, typed coordinates) and their tests. Not built: pin on map (1.3), "Look up missing
-coordinates" (1.4), and everything from section 2 on. The `map` entry in
-[../../src/players.js](../../src/players.js) is still `available: false`.
-Rules shared by all players are in [../player-contract.md](../player-contract.md). Two of them change for this
+**Status: sections 1 to 10 are built, except 1.3 and 1.4; the tour (11) is not.** Built: schema v10 `geo`, the
+editor's Coordinates row (online lookup with consent, typed coordinates), and the player: launcher and stage,
+Leaflet, tile sources, dots (shared, numbered), lines and arrows, both flyouts with pinning, the lightbox,
+stepping, keys and remembered settings, the export with Leaflet inlined, and the contract changes. Not built: pin
+on map (1.3), "Look up missing coordinates" (1.4), the auto-play tour (11), and the save-dialog note naming the tile
+hosts (10, item 2). The `map` entry in [../../src/players.js](../../src/players.js) is `available: true`.
+**Not yet tried by hand:** a real `.timeline.html` opened from disk (the Referer question in section 4), tiles
+offline, resizing with panels pinned, and a real phone. It has been run in headless Edge from an exported file
+(tiles, stepping, scopes, lines, numbers, arrows, pinned split view, lightbox), with no console errors.
+Rules shared by all players are in [../player-contract.md](../player-contract.md). Two of them changed for this
 player (section 10).
 
 **Purpose:** show the timeline's events on a map, and let a viewer pick a collection, look at one event and its
@@ -194,7 +199,10 @@ The tile source is a small list of `{ id, label, url, attribution, maxZoom, kind
 |---|---|---|
 | OpenStreetMap | street | **The default.** Best-effort, no SLA, may be blocked without notice. |
 | Esri World Imagery | aerial | Free. Needs attribution. |
-| Carto Voyager | street | Free for non-commercial use. |
+| VersaTiles Satellite | aerial | Free, no key, worldwide imagery merged from several providers (attribution links to their list). 512 pixel tiles, so the layer uses `tileSize: 512` and `zoomOffset: -1`. Its street map is vector-only and is not used. |
+| NASA Blue Marble (GIBS) | styled | Free, no key, worldwide relief and sea-floor picture (500 m a pixel). Real tiles stop at zoom 8 (`maxNativeZoom`); closer in they are enlarged, to zoom 12. NASA's GIBS also has daily satellite layers (MODIS, VIIRS) that need a date in the path; they are not used. |
+| OpenTopoMap | styled | Free, no key, worldwide (terrain and contours). Volunteer-run, so it can be slow. Zoom stops at 17. CC-BY-SA, and its attribution names SRTM too. |
+| Carto Voyager | street | **Removed.** Its servers now answer keyless requests with a watermarked "API key required" tile. Add it back only with a key. |
 | Stamen Watercolor (Stadia) | styled | Needs an account or domain auth for non-local use. Left out until tested from a real export. |
 
 - A small switcher on the map lists them. The choice is remembered per viewer (section 9). **(default)**
@@ -219,7 +227,7 @@ greyed out.
   which shows a count badge and lists all of them in the details panel. Without this a trip that revisits a place
   would stack dots that can't be told apart. **(default)**
 - The selected event's dot is larger, with a ring. Hovering a dot shows a small tooltip with the event title.
-- Dot colour is the accent colour. Per-type colours are a later idea.
+- Dots, lines and arrowheads share one colour, chosen in Settings from four: green (`#2f6f68`, the default), red, yellow and purple. Each carries its own number and outline colours, so yellow uses dark ones where the others use white. Dots are 22px across (30px selected), dashed lines 4.5px with a pale outline. Per-type colours are a later idea.
 
 ### 5.2 Lines and numbers
 
@@ -266,7 +274,7 @@ Two flyouts over the map: **left** for choosing and settings, **right** for the 
   (with its count of located events), in `timeline.collections` order. Collections with none are left out.
 - **Event list** for the current scope: chronological, date and title, with a marker for the selected one.
   Clicking one selects it and flies to it. An event in several collections appears in each.
-- **Settings:** tile source, lines (off, per collection, all in date order), arrows, numbers, open details on select.
+- **Settings:** tile source, colour, lines (off, per collection, all in date order), arrows, numbers, open details on select.
 - Search and type filtering are not included (the timeline player has them). **(default)**
 
 ### 6.3 Right panel
@@ -314,7 +322,7 @@ Opening the stage starts in All events, fitted to all located events.
 
 Keys are ignored while a text field has focus. The handler is removed when the stage closes.
 
-Settings (tile source, lines, arrows, numbers, open details on select, pin state of each panel) are remembered
+Settings (tile source, colour, lines, arrows, numbers, open details on select, pin state of each panel) are remembered
 in `localStorage`, per viewer, in try/catch, and the player works without it. **(default)**
 
 ## 10. Changes this needs elsewhere

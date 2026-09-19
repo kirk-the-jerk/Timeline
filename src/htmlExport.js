@@ -5,8 +5,13 @@ import { getPlayerType, normalizePlayerType } from "./players.js";
 export const EXPORT_RUNTIME_URL = new URL("./exportRuntime.js", import.meta.url).href;
 export const PLAYER_CSS_URLS = [
   new URL("./timelinePlayer.css", import.meta.url).href,
-  new URL("./slideshowPlayer.css", import.meta.url).href
+  new URL("./slideshowPlayer.css", import.meta.url).href,
+  new URL("./mapPlayer.css", import.meta.url).href
 ];
+// Leaflet is a classic script, not an ES module, so it never goes through the
+// bundler. It is inlined only into an export whose player is the Map.
+export const LEAFLET_JS_URL = new URL("../vendor/leaflet/leaflet.js", import.meta.url).href;
+export const LEAFLET_CSS_URL = new URL("../vendor/leaflet/leaflet.css", import.meta.url).href;
 
 export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safeTimeline = normalizeTimeline({
@@ -16,7 +21,10 @@ export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safePlayerType = normalizePlayerType(playerType);
   const runtime = await bundleModules(EXPORT_RUNTIME_URL, fetchText);
   const playerCss = (await Promise.all(PLAYER_CSS_URLS.map(fetchText))).join("\n");
-  const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime, playerCss);
+  const vendor = safePlayerType === "map"
+    ? { js: await fetchText(LEAFLET_JS_URL), css: await fetchText(LEAFLET_CSS_URL) }
+    : null;
+  const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime, playerCss, vendor);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -34,11 +42,13 @@ async function fetchText(url) {
   return response.text();
 }
 
-export function buildStandaloneHtml(timeline, playerType, runtime, playerCss = "") {
+// `vendor` is { js, css }: the Leaflet library text, used only for the Map player.
+export function buildStandaloneHtml(timeline, playerType, runtime, playerCss = "", vendor = null) {
   const title = escapeHtml(timeline.title);
   const timelineJson = JSON.stringify(timeline).replaceAll("<", "\\u003c");
   const player = getPlayerType(playerType);
   const playerJson = JSON.stringify(player).replaceAll("<", "\\u003c");
+  const leaflet = player.value === "map" && vendor ? vendor : null;
 
   return `<!doctype html>
 <html lang="en">
@@ -46,7 +56,7 @@ export function buildStandaloneHtml(timeline, playerType, runtime, playerCss = "
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${title}</title>
-    <style>${standaloneCss()}${playerCss}</style>
+    <style>${leaflet ? `${stripCssUrls(leaflet.css)}\n` : ""}${standaloneCss()}${playerCss}</style>
   </head>
   <body>
     <main class="shell">
@@ -61,10 +71,22 @@ export function buildStandaloneHtml(timeline, playerType, runtime, playerCss = "
     </main>
     <script type="application/json" id="timeline-data">${timelineJson}</script>
     <script type="application/json" id="player-data">${playerJson}</script>
-    <script>${runtime}</script>
+    ${leaflet ? `<script>${escapeScriptText(leaflet.js)}</script>\n    ` : ""}<script>${runtime}</script>
   </body>
 </html>
 `;
+}
+
+// Leaflet's stylesheet points at images the player doesn't use (dots are CSS),
+// and an export must not reference files it doesn't carry. Each declaration that
+// mentions url() is dropped.
+export function stripCssUrls(css) {
+  return css.replace(/[^;{}]*url\([^)]*\)[^;{}]*;?/g, "");
+}
+
+// "</script" inside the inlined library would end the export's <script> early.
+export function escapeScriptText(source) {
+  return source.replaceAll("</script", "<\\/script");
 }
 
 function standaloneCss() {
