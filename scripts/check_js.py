@@ -10,6 +10,7 @@ JS_FILES = [
     "src/fileLoad.js",
     "src/db.js",
     "src/players.js",
+    "src/nav.js",
     "src/playerRenderers.js",
     "src/eventCard.js",
     "src/timelinePlayer.js",

@@ -1,6 +1,7 @@
 import { createTimelineLoadController } from "./fileLoad.js";
+import { initNav } from "./nav.js";
 import { renderPlayer } from "./playerRenderers.js";
-import { getPlayerType, normalizePlayerType } from "./players.js";
+import { DEFAULT_PLAYER_TYPE, getPlayerType, normalizePlayerType } from "./players.js";
 import { normalizeTimeline, sortEvents } from "./timeline.js";
 
 const loadButton = document.querySelector("#open-load-file");
@@ -15,7 +16,8 @@ const summary = document.querySelector("#timeline-summary");
 const timelineEl = document.querySelector("#timeline");
 
 let timelineDocument = null;
-const selectedPlayer = getPlayerType(getRequestedPlayerType());
+let selectedPlayer = getPlayerType(getRequestedPlayerType());
+const nav = initNav({ selectedPlayer: selectedPlayer.value, onSelectPlayer: switchPlayer });
 
 createTimelineLoadController({
   dialog: loadDialog,
@@ -70,6 +72,27 @@ function renderTimeline(loadedTimeline) {
     events,
     player: selectedPlayer
   });
+}
+
+// Switches in place so a timeline loaded from a file isn't lost, and keeps the
+// URL in step so a reload or a copied link opens the same player.
+function switchPlayer(playerValue) {
+  selectedPlayer = getPlayerType(playerValue);
+  nav.setSelectedPlayer(selectedPlayer.value);
+
+  const url = new URL(window.location.href);
+  if (selectedPlayer.value === DEFAULT_PLAYER_TYPE) {
+    url.searchParams.delete("player");
+  } else {
+    url.searchParams.set("player", selectedPlayer.value);
+  }
+  window.history.replaceState(null, "", url);
+
+  if (timelineDocument) {
+    renderTimeline(timelineDocument);
+  } else {
+    renderEmptyState();
+  }
 }
 
 function getRequestedPlayerType() {

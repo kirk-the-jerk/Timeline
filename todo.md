@@ -4,7 +4,7 @@ Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pa
 (see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. Done since: P1 confirmations
 (clear draft, delete event, import), the first two P4 bullets (placeholder players hidden), all of P8,
 P2 (export runtime extracted and tested), P3 (time ranges, schema v9, no-op migrations collapsed), the
-`timeline` player and view-time filtering from P4, and most of P9. Everything else is still open.
+`timeline` player, view-time filtering and the player switcher from P4, and most of P9. Everything else is still open.
 `python scripts/check_js.py` passes.
 
 ## Framing: objectives vs. outcomes
@@ -102,7 +102,10 @@ as real, selectable export options ([editor.html:301-304](editor.html#L301-L304)
 - [x] Remove the placeholder entries from the nav dropdowns in [index.html](index.html) and [editor.html](editor.html). (`player.html` never had a dropdown.) With one working player, the dropdowns became plain **Player** links. Restore a dropdown when a second player ships.
 - [x] Build the `timeline` player for real — range bars (needs P3) and a date scrubber. This is the hypothesis the whole project exists to test. [src/timelinePlayer.js](src/timelinePlayer.js) draws events in the chosen date window (ranges as bars, single moments as dots, packed into lanes) over a two-handle scrubber for the whole span; clicking a mark scrolls to its card. Layout maths (scale, ticks, lanes) is DOM-free in [src/timelineLayout.js](src/timelineLayout.js) and unit-tested by `scripts/check_timeline_layout.mjs`; styles live in [src/timelinePlayer.css](src/timelinePlayer.css), shared by `player.html` and the export. Still unproven: whether it *feels* good with real data — try it on a real timeline before building more. Not covered by automated tests: the DOM behaviour (checked by hand in Edge).
 - [x] **Add view-time search/filter.** Text search plus type and collection toggles and the date window, all in the `timeline` player. The Simple player still has none.
-- [ ] Restore the nav dropdown now that a second player ships (see the second P4 bullet).
+- [x] Restore the nav dropdown now that a second player ships (see the second P4 bullet). Done as a split button on all three pages: the main part opens the Simple player, the caret lists the available players ([src/nav.js](src/nav.js)). On `player.html` it switches in place, so a loaded timeline isn't lost.
+- [x] The `timeline` player scrolled you away from the chart on every click. The chart, scrubber and status line are now pinned (`position: sticky`) while the cards scroll beneath, and clicked cards stop below the pinned block. Controls (search, chips) are not pinned.
+- [ ] Future consideration: **detail panel instead of a card list.** Feedback was that the `timeline` player is just the Simple player with a chart on top. Clicking a mark would select it and show only that event's card in a detail panel beside or below the chart, so nothing scrolls; the full list could collapse into an "all events" section or go. This is what would make it a distinct way of viewing a timeline, not a chart bolted onto the list. Do it if the pinned chart still feels like the Simple player.
+- [ ] Future consideration: **link the chart and the list both ways.** Highlight the chart marks for the cards currently in view (an `IntersectionObserver`), so scrolling the list shows where you are in time, and add previous/next arrows for stepping through events. Builds on the pinned chart.
 - [x] The vertical line and dots ran through the date text in both players. They now sit in a gutter between the right-aligned date and the card ([styles.css](styles.css), and `standaloneCss()` in [src/htmlExport.js](src/htmlExport.js)). Displayed dates also drop the time zone, and drop the time when it is 00:00.
 
 ## P5 — "Portable forever" vs. lossy-on-ingest images

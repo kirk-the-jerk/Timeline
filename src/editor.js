@@ -1,6 +1,7 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
 import { createTimelineLoadController, LoadCancelledError, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
+import { initNav } from "./nav.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
   canRenderImageMedia,
@@ -153,6 +154,7 @@ createTimelineLoadController({
 });
 
 async function init() {
+  initNav();
   populateEventTypes();
   populateTimeZones();
   populateFieldPresets();

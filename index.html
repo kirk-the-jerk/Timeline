@@ -14,8 +14,9 @@
           <span>Timeline POC</span>
         </div>
         <nav class="nav-links" aria-label="App pages">
+          <a class="button" href="index.html" aria-current="page">Product</a>
           <a class="button" href="editor.html">Editor</a>
-          <a class="button" href="player.html">Player</a>
+          <a class="button" href="player.html" data-nav="player">Player</a>
         </nav>
       </header>
 
@@ -50,5 +51,10 @@
         </article>
       </section>
     </main>
+
+    <script type="module">
+      import { initNav } from "./src/nav.js";
+      initNav();
+    </script>
   </body>
 </html>

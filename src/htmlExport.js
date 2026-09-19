@@ -70,6 +70,7 @@ function standaloneCss() {
   color-scheme: light;
   --bg: #f6f4ef;
   --panel: #ffffff;
+  --tl-pin-bg: var(--bg);
   --text: #222222;
   --muted: #666666;
   --line: #d7d3c8;

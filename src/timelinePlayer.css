@@ -13,9 +13,28 @@
   display: none;
 }
 
+/* Flex rather than grid: a sticky grid item can't leave its own grid area, so
+   the pinned chart below would never follow the scroll. */
 .tl-player {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The chart, scrubber and status stay at the top of the window while the cards
+   scroll underneath, so clicking a mark never carries you away from the chart.
+   The background hides the cards passing behind. */
+.tl-pin {
   display: grid;
   gap: 14px;
+}
+
+.tl-pin.is-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 8px 0 10px;
+  background: var(--tl-pin-bg, var(--panel));
 }
 
 .tl-controls {
@@ -72,9 +91,12 @@
   overflow: hidden;
 }
 
+/* Capped so a crowded chart can't fill the window; it scrolls inside instead. */
 .tl-plot {
   position: relative;
   min-height: 38px;
+  max-height: 26vh;
+  overflow-y: auto;
 }
 
 .tl-grid {
@@ -266,12 +288,34 @@
   margin-top: 4px;
 }
 
+/* Scrolled-to cards stop just below the pinned chart. --tl-pin-height is kept
+   up to date by the player. */
+.tl-list .timeline-event {
+  scroll-margin-top: calc(var(--tl-pin-height, 0px) + 12px);
+}
+
 .timeline-event.is-highlighted .timeline-card {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
 
+/* Too short a window (a phone on its side) to spare room for a pinned chart. */
+@media (max-height: 560px) {
+  .tl-pin.is-pinned {
+    position: static;
+    padding: 0;
+  }
+
+  .tl-list .timeline-event {
+    scroll-margin-top: 12px;
+  }
+}
+
 @media (max-width: 760px) {
+  .tl-plot {
+    max-height: 22vh;
+  }
+
   .tl-chart {
     padding: 8px 20px 0;
   }

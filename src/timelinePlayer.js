@@ -59,21 +59,23 @@ export function renderTimelinePlayer({ container, timeline, events }) {
         ${renderChipGroup("type", "Event types", countTypes(timeline, entries))}
         ${renderChipGroup("collection", "Collections", countCollections(entries))}
       </div>
-      ${domain ? `
-        <div class="tl-chart">
-          <div class="tl-plot" data-plot></div>
-          <div class="tl-axis" data-axis></div>
+      <div class="tl-pin${domain ? " is-pinned" : ""}" data-pin>
+        ${domain ? `
+          <div class="tl-chart">
+            <div class="tl-plot" data-plot></div>
+            <div class="tl-axis" data-axis></div>
+          </div>
+          <div class="tl-overview">
+            <div class="tl-overview-marks" data-overview-marks></div>
+            <div class="tl-overview-window" data-overview-window></div>
+            <input class="tl-range" type="range" min="0" max="${SLIDER_MAX}" step="1" value="0" data-handle="start" aria-label="Window start">
+            <input class="tl-range" type="range" min="0" max="${SLIDER_MAX}" step="1" value="${SLIDER_MAX}" data-handle="end" aria-label="Window end">
+          </div>
+        ` : ""}
+        <div class="tl-status">
+          <span data-status role="status" aria-live="polite"></span>
+          <button class="tl-reset" type="button" data-reset hidden>Show everything</button>
         </div>
-        <div class="tl-overview">
-          <div class="tl-overview-marks" data-overview-marks></div>
-          <div class="tl-overview-window" data-overview-window></div>
-          <input class="tl-range" type="range" min="0" max="${SLIDER_MAX}" step="1" value="0" data-handle="start" aria-label="Window start">
-          <input class="tl-range" type="range" min="0" max="${SLIDER_MAX}" step="1" value="${SLIDER_MAX}" data-handle="end" aria-label="Window end">
-        </div>
-      ` : ""}
-      <div class="tl-status">
-        <span data-status role="status" aria-live="polite"></span>
-        <button class="tl-reset" type="button" data-reset hidden>Show everything</button>
       </div>
       <div class="tl-empty empty-state" data-empty hidden>No events match. Try widening the dates or clearing the filters.</div>
       <div class="tl-list timeline" data-list></div>
@@ -81,6 +83,7 @@ export function renderTimelinePlayer({ container, timeline, events }) {
   `;
 
   const root = container.querySelector(".tl-player");
+  const pin = root.querySelector("[data-pin]");
   const searchInput = root.querySelector(".tl-search");
   const plot = root.querySelector("[data-plot]");
   const axis = root.querySelector("[data-axis]");
@@ -127,6 +130,14 @@ export function renderTimelinePlayer({ container, timeline, events }) {
     }).observe(plot);
   }
 
+  // The chart stays pinned while the cards scroll beneath it, so a card has to
+  // stop below the pinned block rather than behind it (see .tl-list in the CSS).
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(() => {
+      root.style.setProperty("--tl-pin-height", `${pin.offsetHeight}px`);
+    }).observe(pin);
+  }
+
   update();
 
   function moveHandle(handle) {
@@ -160,7 +171,7 @@ export function renderTimelinePlayer({ container, timeline, events }) {
   }
 
   function revealEntry(entry) {
-    entry.row.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    entry.row.scrollIntoView?.({ block: "start", behavior: "smooth" });
     entry.row.classList.add("is-highlighted");
     setTimeout(() => entry.row.classList.remove("is-highlighted"), 1600);
   }
@@ -236,10 +247,12 @@ export function renderTimelinePlayer({ container, timeline, events }) {
     }).sort((a, b) => a.x0 - b.x0);
 
     const { lanes, laneCount } = packLanes(items);
-    plot.style.height = `${Math.max(laneCount, 1) * LANE_HEIGHT + 8}px`;
+    const plotHeight = Math.max(laneCount, 1) * LANE_HEIGHT + 8;
+    plot.style.height = `${plotHeight}px`;
 
     const ticks = getTimeTicks(range.start, range.end, Math.max(3, Math.min(10, Math.floor(width / 110))));
-    const grid = ticks.map((tick) => `<span class="tl-grid" style="left:${toFrac(tick.time) * 100}%"></span>`).join("");
+    // Explicit height, since the plot scrolls when capped and top/bottom would only span the visible part.
+    const grid = ticks.map((tick) => `<span class="tl-grid" style="left:${toFrac(tick.time) * 100}%;height:${plotHeight}px"></span>`).join("");
     axis.innerHTML = ticks.map((tick) => `<span style="left:${toFrac(tick.time) * 100}%">${escapeHtml(tick.label)}</span>`).join("");
 
     plot.innerHTML = grid + items.map((item, index) => {

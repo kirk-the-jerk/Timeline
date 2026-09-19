@@ -166,33 +166,43 @@ body.dragging .player-panel {
   flex-wrap: wrap;
 }
 
-.dropdown-menu {
+.nav-links [aria-current] {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.split-button {
   position: relative;
+  display: inline-flex;
 }
 
-.dropdown-menu summary {
-  list-style: none;
+.split-button > .button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-.dropdown-menu summary::-webkit-details-marker {
-  display: none;
+.split-toggle {
+  margin-left: -1px;
+  padding: 0 10px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
-.dropdown-menu summary::after {
+.split-toggle::after {
   content: "";
-  width: 8px;
-  height: 8px;
-  margin-left: 8px;
+  width: 7px;
+  height: 7px;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: translateY(-2px) rotate(45deg);
 }
 
-.dropdown-menu[open] summary::after {
+.split-toggle[aria-expanded="true"]::after {
   transform: translateY(2px) rotate(225deg);
 }
 
 .dropdown-panel {
+  top: 100%;
   position: absolute;
   right: 0;
   z-index: 10;
@@ -206,9 +216,18 @@ body.dragging .player-panel {
   box-shadow: 0 14px 30px rgba(34, 34, 34, 0.14);
 }
 
-.button-row .dropdown-panel {
-  left: 0;
-  right: auto;
+.dropdown-panel[hidden] {
+  display: none;
+}
+
+.dropdown-panel a[aria-current] {
+  color: var(--accent-dark);
+}
+
+.dropdown-panel a[aria-current]::after {
+  content: "\2713";
+  float: right;
+  margin-left: 16px;
 }
 
 .dropdown-panel a {
