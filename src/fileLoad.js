@@ -1,5 +1,7 @@
 import { normalizeTimelineWithDiagnostics } from "./timeline.js";
 
+export class LoadCancelledError extends Error {}
+
 export function createTimelineLoadController({
   dialog,
   closeButton,
@@ -87,6 +89,11 @@ export function createTimelineLoadController({
       onStatus?.(customMessage || loadedMessage(file, diagnostics));
     } catch (error) {
       setLoadProgress(progressBar, 100);
+      if (error instanceof LoadCancelledError) {
+        appendLoadLog(log, error.message);
+        onStatus?.(error.message);
+        return;
+      }
       if (Array.isArray(error.diagnostics)) {
         for (const diagnostic of error.diagnostics) {
           appendLoadLog(log, formatDiagnostic(diagnostic));

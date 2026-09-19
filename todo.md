@@ -1,8 +1,9 @@
 # Timeline POC — Evaluation and TODO
 
 Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pass
-(see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828` — unchanged since the first assessment,
-so nothing below has been actioned yet. `python scripts/check_js.py` passes.
+(see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. P1 confirmations
+(clear draft, delete event, import) are done on `fix/p1-data-safety`; everything else is still open.
+`python scripts/check_js.py` passes.
 
 ## Framing: objectives vs. outcomes
 
@@ -48,10 +49,10 @@ contradiction with the "your memories, kept safely on your machine" pitch. The e
 users their work is temporary ([editor.html:85](editor.html#L85)) — that's a caveat where a safeguard belongs.
 **Verified:** there is no `confirm()` anywhere in `src/`.
 
-- [ ] Confirm before **Clear draft** ([src/editor.js:467-474](src/editor.js#L467-L474)) — wipes the entire IndexedDB draft, document and all media, from a toolbar icon sitting next to Save and Load.
-- [ ] Confirm before **Delete event** ([src/editor.js:739-757](src/editor.js#L739-L757)) — also purges associated media.
-- [ ] Stop **import** from clobbering the active draft ([src/editor.js:134-141](src/editor.js#L134-L141)). There is exactly one slot (`ACTIVE_ID = "active"`, [src/db.js:7](src/db.js#L7)), so opening a file to look at it destroys current work. Needs either a confirm, or multi-draft storage (see P6).
-- [ ] Consider an auto-backup slot (last-known-good draft) as a cheap safety net under all three.
+- [x] Confirm before **Clear draft** ([src/editor.js:467-474](src/editor.js#L467-L474)) — wipes the entire IndexedDB draft, document and all media, from a toolbar icon sitting next to Save and Load.
+- [x] Confirm before **Delete event** ([src/editor.js:739-757](src/editor.js#L739-L757)) — also purges associated media.
+- [x] Stop **import** from clobbering the active draft ([src/editor.js:134-141](src/editor.js#L134-L141)). There is exactly one slot (`ACTIVE_ID = "active"`, [src/db.js:7](src/db.js#L7)), so opening a file to look at it destroys current work. Needs either a confirm, or multi-draft storage (see P6).
+- [ ] Consider an auto-backup slot (last-known-good draft) as a cheap safety net under all three. Deferred: needs a restore UI as well as the storage change, and matters less now that the confirmations exist.
 
 ## P2 — The standalone export runtime is unverified and duplicated
 

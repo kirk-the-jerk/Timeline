@@ -1,5 +1,5 @@
 import { clearActiveTimeline, loadActiveTimeline, saveActiveTimeline } from "./db.js";
-import { createTimelineLoadController, showDialog } from "./fileLoad.js";
+import { createTimelineLoadController, LoadCancelledError, showDialog } from "./fileLoad.js";
 import { downloadStandaloneHtml } from "./htmlExport.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
 import {
@@ -132,6 +132,12 @@ createTimelineLoadController({
   progressBar: loadProgressBar,
   log: loadLog,
   onTimelineLoaded: async (timelineDocument, { file, diagnostics }) => {
+    if (hasDraftContent() && !window.confirm(
+      `Opening ${file.name || "this file"} will replace your current draft `
+      + `(${describeDraftContent()}). This can't be undone. Continue?`
+    )) {
+      throw new LoadCancelledError("Open cancelled. Your current draft was kept.");
+    }
     timeline = timelineDocument;
     lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
     setTitleEditing(false, { focus: false });
@@ -314,6 +320,11 @@ saveForm.addEventListener("submit", (event) => {
 });
 
 clearTimelineButton.addEventListener("click", async () => {
+  if (hasDraftContent() && !window.confirm(
+    `Clear the whole draft (${describeDraftContent()})? This can't be undone.`
+  )) {
+    return;
+  }
   await clearTimelineDraft();
 });
 
@@ -463,6 +474,15 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   closeEventEditor();
 });
+
+function hasDraftContent() {
+  return timeline.events.length > 0 || timeline.media.length > 0;
+}
+
+function describeDraftContent() {
+  const count = timeline.events.length;
+  return `${count} event${count === 1 ? "" : "s"}`;
+}
 
 async function clearTimelineDraft() {
   timeline = createEmptyTimeline();
@@ -746,6 +766,8 @@ eventList.addEventListener("click", async (event) => {
   const deleteButton = event.target.closest("[data-delete-id]");
   if (!deleteButton) return;
   const deletedEvent = timeline.events.find((item) => item.id === deleteButton.dataset.deleteId);
+  if (!deletedEvent) return;
+  if (!window.confirm(`Delete "${getEventTitle(deletedEvent)}"? This can't be undone.`)) return;
   timeline.events = timeline.events.filter((item) => item.id !== deleteButton.dataset.deleteId);
   removeUnusedMediaForEvent(deletedEvent);
   if (editingEventId === deletedEvent?.id) {
