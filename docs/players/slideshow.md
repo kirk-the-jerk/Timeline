@@ -1,6 +1,9 @@
 # Slideshow player
 
-**Status: spec agreed in outline, not implemented.** `available` is still `false` in [../../src/players.js](../../src/players.js).
+**Status: implemented.** Source: [../../src/slideshowPlayer.js](../../src/slideshowPlayer.js) (the DOM), with the pure parts in
+[../../src/slideshowModel.js](../../src/slideshowModel.js) (slides, summary, settings) and
+[../../src/slideshowChrome.js](../../src/slideshowChrome.js) (when the controls show), and styles in
+[../../src/slideshowPlayer.css](../../src/slideshowPlayer.css).
 Rules shared by all players are in [../player-contract.md](../player-contract.md).
 
 **Purpose:** unattended or lightly-attended playback of the timeline's photos with their event details,
@@ -57,7 +60,7 @@ This is pure and DOM-free. It lives in its own module, `src/slideshowModel.js`, 
 
 Shown when the player opens.
 
-- **What will play**, from the slides above and not the whole timeline: title; date span (earliest start to latest end among the events that will play); number of photos; number of events; number of collections.
+- **What will play**, from the slides above and not the whole timeline: date span (earliest start to latest end among the events that will play); number of photos; number of events; number of collections. The timeline's title is not repeated: both hosts already show it in their header.
 - **Settings**, the same set as the bar (section 5).
 - **Play** button, also Space and Enter. **(default)**
 - A **Start in full screen** checkbox, on by default. Play is a user gesture, so it may request browser full screen on the stage. **(default)**
@@ -93,6 +96,13 @@ crossfade is deferred. The delay counts from when the fade-in finishes. The next
 A linked image can fail to load. The slide is dropped from the list and playback moves on. The counter shrinks
 to match.
 
+### 4.5 Play/pause indicator
+
+When Space toggles play/pause (auto-advance on), the new state is flashed in the middle of the screen: a pause symbol
+when the show has just paused, a play symbol when it has resumed. It is a dark circle with the symbol, shown at once
+and faded out over about 0.7 seconds while it grows slightly (no growth under `prefers-reduced-motion`). It ignores
+the pointer. The bar's own play/pause button doesn't flash it, since it shows its state itself.
+
 ## 5. Playback bar
 
 At the top of the stage. Contents, left to right:
@@ -126,8 +136,17 @@ and the bar counts as paused for visibility (5.2).
 - **The reveal button:** a small, mostly transparent button at the top-left. It's visible while paused (or auto-advance is off), or for 1 second after the mouse last moved.
 - **Opening the bar:** hover or click the reveal button. The bar appears and the button hides.
 - **Closing the bar:** 2 seconds after the pointer leaves it, unless focus is inside it.
+- **Left edge:** the bar leaves its left 68px empty. It opens under the reveal button, so without that gap a click meant to open the bar would land on "Back to start".
 - **Keyboard:** the bar and reveal button don't have to be reachable by keyboard. The keyboard shortcuts in section 6 cover play/pause, stepping, full screen and details. The bar's controls are ordinary buttons and inputs, so they still work if focused, but nothing is built around it.
-- **Touch:** there is no mouse movement, so tapping the stage opens the bar with the same 2-second close. Swipe left or right steps forward or back. Controls need touch-sized targets.
+- **Touch:** there is no mouse movement, so tapping the stage opens the bar with the same 2-second close, and tapping again closes it. Swipe left or right steps forward or back. Controls need touch-sized targets.
+- **Pointer over the bar:** opening the bar from the reveal button starts the pointer "inside" it, because the button sits inside the bar's area. Browsers don't always send the bar a `mouseenter` when it appears under a pointer that is standing still, so a mouse move elsewhere also counts as leaving. The `:hover` check is only trusted while the pointer is a mouse or pen, since it sticks after a touch.
+
+### 5.2a Mouse clicks
+
+Clicking the stage with a mouse steps: the **left third** of the screen goes back one, the **middle and right thirds** go
+forward one. It works whether or not the show is running, restarts the delay like any manual step, and follows the
+same end rules as the buttons (wraps only with Loop). Clicks on the bar or reveal button are not steps, and neither is
+a click whose press began on them. Touch has its own tap and swipe (above), so a touch's synthesized click is ignored.
 
 The visibility rules are a small state machine. They should be a DOM-free module driven by an injected clock,
 so the timings can be tested in Node.
@@ -142,7 +161,7 @@ so the timings can be tested in Node.
 
 | Key | Action |
 |---|---|
-| Space | Play / pause. In manual mode (auto-advance off), next slide. **(default)** |
+| Space | Play / pause, with the indicator from 4.5. In manual mode (auto-advance off), next slide. **(default)** |
 | ← / → | Back 1 / forward 1 |
 | Home / End | Back to start / forward to end |
 | F | Toggle full screen |
@@ -170,9 +189,11 @@ images are shown at whatever size they are, so they are the way to get full qual
 
 ## 9. Changes this needs elsewhere
 
-1. **A teardown hook.** Done: a renderer may return `{ destroy() }`, and `player.js` calls it before it re-renders. The slideshow uses it to remove timers, document-level key listeners, the stage overlay and full-screen state. The timeline player uses it too, which fixed the `timeline-chart-mode` class it used to leave behind.
-2. **Register the player:** `PLAYER_RENDERERS`, `available: true`, a real description, its CSS linked in `player.html` and inlined in `htmlExport.js`, its modules in `JS_FILES` (contract, section 4).
-3. **Update the contract** for the stage-overlay pattern.
+All done:
+
+1. **A teardown hook.** A renderer may return `{ destroy() }`, and `player.js` calls it before it re-renders. The slideshow uses it to remove timers, document-level key listeners, the stage overlay and full-screen state. The timeline player uses it too, which fixed the `timeline-chart-mode` class it used to leave behind.
+2. **Registered:** `PLAYER_RENDERERS`, `available: true`, its CSS linked in `player.html` and inlined in the export (`PLAYER_CSS_URLS` in `htmlExport.js`), its modules and test in `check_js.py`.
+3. **The contract** describes the stage-overlay pattern (section 3.2).
 
 ## 10. Not in scope
 
@@ -181,7 +202,7 @@ export, editing, fields and notes.
 
 ## 11. Tests
 
-- `slideshowModel.js`: slide list building (order, collection cards once each, multi-collection events, events without images, unrenderable images, broken-link removal). Node test.
-- Bar visibility state machine with a fake clock. Node test.
+- [../../scripts/check_slideshow.mjs](../../scripts/check_slideshow.mjs), in Node: the slide list (order, a collection card once each, multi-collection events, events without images, unusable image URLs), the summary, event details, settings normalization, and the bar-visibility state machine with a fake clock. Broken-link removal is DOM code and isn't covered.
 - `check_export.mjs`: the export builds and compiles with this player and inlines its styles.
-- **By hand, in a browser:** fades, letterbox blur, full screen, Esc handling, the bar and reveal button, tap and swipe, and a real exported file opened from disk.
+- **Checked by hand in headless Edge, driven over the DevTools protocol with real time, keys, mouse and touch:** setup panel; Play with full screen; fades; auto-advance at a 1 second delay; details fading in on an event's first image and the caption on its own image; pause with details and caption staying up; Space, arrows, Home/End, Esc (in and out of full screen), H; the reveal button and the bar's 2 second close; stopping on the last slide and Space to start over; tap, tap again and swipe; the play/pause flash on Space (both directions); mouse clicks in each third, at the very start of the show, and on the reveal button and bar; the Exit button; settings remembered. Also run on a real 5-photo export with landscape and portrait photos. That harness isn't in the repo, so this doesn't re-run automatically.
+- **Not checked:** a broken linked image (the skip path), Loop, manual mode (auto-advance off), a very long collection or event title, and small phone screens.

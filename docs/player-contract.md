@@ -26,9 +26,9 @@ Built by `buildStandaloneHtml` in [../src/htmlExport.js](../src/htmlExport.js):
 
 | Part | Element | Notes |
 |---|---|---|
-| Timeline data | `<script type="application/json" id="timeline-data">` | The full normalized timeline, including `media[]`. `<` is written as `<`. |
+| Timeline data | `<script type="application/json" id="timeline-data">` | The full normalized timeline, including `media[]`. Every `<` is written as the JSON escape for U+003C, so data can't close the `<script>` tag. |
 | Player choice | `<script type="application/json" id="player-data">` | The player descriptor from `players.js` (`value`, `label`, ...). |
-| Styles | one `<style>` | `standaloneCss()` plus [../src/timelinePlayer.css](../src/timelinePlayer.css). |
+| Styles | one `<style>` | `standaloneCss()` plus each player's CSS file ([../src/timelinePlayer.css](../src/timelinePlayer.css), [../src/slideshowPlayer.css](../src/slideshowPlayer.css)), listed in `PLAYER_CSS_URLS`. |
 | Runtime | one classic `<script>` | [../src/exportRuntime.js](../src/exportRuntime.js) and its imports, bundled by [../src/exportBundle.js](../src/exportBundle.js). |
 
 **Must:**
@@ -50,8 +50,9 @@ whichever player its own `?player=` URL selects.
 The export page is `.shell` (a 960px-wide centered column) with a header (eyebrow, `<h1>` title, summary line)
 and the `#timeline` container. It has no nav, no load button, no player switcher and no persisted state.
 
-**Gap:** the export has no way to say what a player wants from the page. A player that wants the whole
-viewport (a slideshow) has to escape `.shell`, and there's no hook for that yet.
+A player that wants the whole viewport (the slideshow) doesn't need the page's help: it builds a
+`position: fixed; inset: 0` overlay and appends it to `<body>`, which covers `.shell`, the header and
+(in `player.html`) the nav. See 3.2.
 
 ### 2.4 Failure behavior
 
@@ -96,7 +97,9 @@ Registered in `PLAYER_RENDERERS` ([../src/playerRenderers.js](../src/playerRende
 | `events` | `timeline.events` sorted by `sortEvents`: wall-clock date and time ascending, then title. Read-only. |
 | `player` | The player descriptor (`value`, `label`, `description`, `available`). |
 
-The host, not the player, sets the page title and summary line.
+The host, not the player, sets the page's title and summary line and the browser tab title (`document.title`, the
+timeline's title). `player.html` restores its own title when it has no timeline loaded. A player never sets these,
+so every player gets them.
 
 A renderer may return `{ destroy() }`. `renderPlayer` always returns a handle (an empty one if the renderer
 returned nothing), so callers can call `destroy()` without checking. `player.html` destroys the current view
@@ -112,6 +115,7 @@ The export renders once and never destroys.
 - **Not touch the network.**
 - **Work without a frame around it.** The same code runs in `player.html` as an ES module and in the export as one classic script. A player must not assume nav, the load dialog or a particular container width.
 - **Clean up after itself.** `player.html` calls the renderer again on the same container when the player is switched or a new file is loaded, after clearing the container's children. Anything the renderer set up beyond those children must be undone in `destroy()`: classes added to `container`, observers, timers, listeners on `document` or `window`, and elements appended elsewhere in the page.
+- **Own anything it puts outside `container`.** The slideshow's stage is a full-viewport overlay appended to `<body>`. It, its document listeners and any page-level class (`ss-lock` on `<html>`) are removed by `destroy()`. It also must give the user a way back out (Exit, Esc), since it hides the page's own controls.
 - **Guard browser features it can do without.** `ResizeObserver` and `scrollIntoView` are already used behind `typeof` or `?.` checks. Do the same for anything newer.
 
 ### 3.3 Bundler constraints
@@ -126,7 +130,7 @@ The export bundler is deliberately small and rejects what it doesn't understand,
 ### 3.4 Styling
 
 - Style with the shared custom properties: `--bg`, `--panel`, `--text`, `--muted`, `--line`, `--accent`. `--accent-dark`, `--panel-soft` and `--tl-pin-bg` are optional and used with fallbacks.
-- Put a player's CSS in its own file next to its module (see `timelinePlayer.css`). `player.html` links it and `htmlExport.js` inlines it, so add the same two lines for a new file.
+- Put a player's CSS in its own file next to its module (see `timelinePlayer.css`). `player.html` links it and the export inlines every file in `PLAYER_CSS_URLS` (`htmlExport.js`), so a new file needs a `<link>` in `player.html` and an entry in that list.
 - The event card (`renderEventListItem`) is styled by `styles.css` in the app and by the hand-written `standaloneCss()` in the export. **Gap:** these are two copies. A new card class has to be added to both.
 
 ### 3.5 Availability
@@ -138,7 +142,7 @@ can't be selected by URL. Flip it to `true` when the renderer works.
 
 1. Add the renderer module and register it in `PLAYER_RENDERERS`.
 2. Flip `available` in `PLAYER_TYPES`. Update the description.
-3. Add its CSS file, and link it in `player.html` and inline it in `htmlExport.js` (`downloadStandaloneHtml` and `buildStandaloneHtml`).
+3. Add its CSS file, link it in `player.html`, and add it to `PLAYER_CSS_URLS` in `htmlExport.js`.
 4. Add the module to `JS_FILES` in [../scripts/check_js.py](../scripts/check_js.py).
 5. Put DOM-free logic (layout, selection, stepping) in its own module and give it a Node test, as `timelineLayout.js` does.
 6. Extend `check_export.mjs`: the export builds with the new player, its styles are inlined and the runtime compiles.
@@ -150,16 +154,16 @@ can't be selected by URL. Flip it to `true` when the renderer works.
 | Concern | State |
 |---|---|
 | Works from `file://` | Yes, by design. |
-| Keyboard | Native controls only (buttons, range inputs, search box). Nothing is bound to keys. |
+| Keyboard | Simple and Timeline: native controls only. Slideshow: Space, arrows, Home/End, F, H and Esc (see its spec). |
 | Screen readers | The timeline player has a live status region. Otherwise unspecified. |
-| Reduced motion | Not handled. The timeline player scrolls smoothly on mark click. |
+| Reduced motion | Slideshow: no fades or transitions. The timeline player still scrolls smoothly on mark click. |
 | Dark mode | None. The export forces `color-scheme: light`. |
 | Print | No `@media print` rules anywhere. |
-| Mobile | One breakpoint at 760px (the date column stacks above the card). Otherwise the app's layout is desktop-shaped. |
+| Mobile | One breakpoint at 760px (the date column stacks above the card). Otherwise the app's layout is desktop-shaped. The slideshow stage handles tap and swipe. |
 | Time zones | Shown neither in the card date nor on the chart. Ordering is by wall-clock text. See 6. |
 
-**Gap:** none of these has been set as a requirement. The next player will hit most of them (the
-slideshow needs keyboard, motion, full-screen and print answers).
+**Gap:** none of these has been set as a requirement across players. The slideshow answered keyboard, motion
+and full screen for itself. Print is still open.
 
 ## 6. Time handling
 
@@ -182,5 +186,4 @@ as written, sorts as text, and can't be placed by the timeline player.
 ## 8. Known gaps
 
 - `standaloneCss()` duplicates part of `styles.css` by hand.
-- No way for a player to ask the host page for more room than the `.shell` column (2.3).
 - The export doesn't remember which player it was made with when it is re-imported (2.2).

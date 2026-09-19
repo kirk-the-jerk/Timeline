@@ -4,7 +4,7 @@ Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pa
 (see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. Done since: P1 confirmations
 (clear draft, delete event, import), the first two P4 bullets (placeholder players hidden), all of P8,
 P2 (export runtime extracted and tested), P3 (time ranges, schema v9, no-op migrations collapsed), the
-`timeline` player, view-time filtering and the player switcher from P4, and most of P9. Everything else is still open.
+`timeline` and `slideshow` players, view-time filtering and the player switcher from P4, and most of P9. Everything else is still open.
 `python scripts/check_js.py` passes.
 
 ## Framing: objectives vs. outcomes
@@ -106,7 +106,7 @@ as real, selectable export options ([editor.html:301-304](editor.html#L301-L304)
 - [x] The `timeline` player scrolled you away from the chart on every click. The chart, scrubber and status line are now pinned (`position: sticky`) while the cards scroll beneath, and clicked cards stop below the pinned block. Controls (search, chips) are not pinned.
 - [ ] Future consideration: **detail panel instead of a card list.** Feedback was that the `timeline` player is just the Simple player with a chart on top. Clicking a mark would select it and show only that event's card in a detail panel beside or below the chart, so nothing scrolls; the full list could collapse into an "all events" section or go. This is what would make it a distinct way of viewing a timeline, not a chart bolted onto the list. Do it if the pinned chart still feels like the Simple player.
 - [ ] Future consideration: **link the chart and the list both ways.** Highlight the chart marks for the cards currently in view (an `IntersectionObserver`), so scrolling the list shows where you are in time, and add previous/next arrows for stepping through events. Builds on the pinned chart.
-- [ ] Build the **slideshow** player from [docs/players/slideshow.md](docs/players/slideshow.md) (draft spec, agreed in outline). The renderer teardown hook it needs (`destroy()`, called by `player.js`) is done, and it also fixed the `timeline-chart-mode` class the timeline player left behind after a player switch.
+- [x] Build the **slideshow** player from [docs/players/slideshow.md](docs/players/slideshow.md). One event's photos play in date order over a blurred backdrop, with collection title cards, details and captions, fades, auto-advance, loop, full screen and a hover/tap playback bar. Pure logic is in `src/slideshowModel.js` and `src/slideshowChrome.js` and is unit-tested by `scripts/check_slideshow.mjs`. The renderer teardown hook it needed (`destroy()`, called by `player.js`) also fixed the `timeline-chart-mode` class the timeline player left behind after a player switch. Checked by hand in headless Edge, including a real 5-photo export; not checked: broken linked images, Loop, manual mode and small phones.
 - [x] The vertical line and dots ran through the date text in both players. They now sit in a gutter between the right-aligned date and the card ([styles.css](styles.css), and `standaloneCss()` in [src/htmlExport.js](src/htmlExport.js)). Displayed dates also drop the time zone, and drop the time when it is 00:00.
 
 ## P5 — "Portable forever" vs. lossy-on-ingest images
