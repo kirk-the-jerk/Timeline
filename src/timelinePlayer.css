@@ -1,0 +1,282 @@
+/* Styles for the timeline player (src/timelinePlayer.js). Shared by player.html,
+   which links it, and the standalone export, which inlines it. */
+
+[hidden] {
+  display: none !important;
+}
+
+.timeline.timeline-chart-mode {
+  display: block;
+}
+
+.timeline.timeline-chart-mode::before {
+  display: none;
+}
+
+.tl-player {
+  display: grid;
+  gap: 14px;
+}
+
+.tl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.tl-search {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 340px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.tl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tl-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.tl-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.tl-chip-count {
+  opacity: 0.65;
+}
+
+.tl-chart {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 28px 0;
+  overflow: hidden;
+}
+
+.tl-plot {
+  position: relative;
+  min-height: 38px;
+}
+
+.tl-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+  opacity: 0.6;
+}
+
+.tl-axis {
+  position: relative;
+  height: 24px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tl-axis span {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.tl-item {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tl-item.is-flipped {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.tl-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-width: 12px;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.tl-item.is-point .tl-bar {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.tl-label {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-item:hover .tl-bar,
+.tl-item:focus-visible .tl-bar {
+  outline: 2px solid var(--accent-dark, #245650);
+  outline-offset: 1px;
+}
+
+.tl-overview {
+  position: relative;
+  height: 34px;
+  margin: 0 28px;
+}
+
+.tl-overview-marks,
+.tl-overview-window {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+}
+
+.tl-overview-marks {
+  left: 0;
+  right: 0;
+  border-radius: 4px;
+  background: var(--panel-soft, #f0eee7);
+}
+
+.tl-overview-marks span {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  min-width: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.tl-overview-window {
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(47, 111, 104, 0.14);
+  pointer-events: none;
+}
+
+/* Two range inputs stacked on one track: the inputs ignore the pointer and only
+   their thumbs take it, so each handle can be dragged past the other's track. */
+.tl-range {
+  position: absolute;
+  left: -8px;
+  width: calc(100% + 16px);
+  top: 0;
+  height: 34px;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.tl-range::-webkit-slider-runnable-track {
+  height: 34px;
+  background: none;
+}
+
+.tl-range::-moz-range-track {
+  height: 34px;
+  background: none;
+}
+
+.tl-range::-webkit-slider-thumb {
+  width: 16px;
+  height: 30px;
+  margin-top: 2px;
+  border: 2px solid #ffffff;
+  border-radius: 5px;
+  background: var(--accent-dark, #245650);
+  pointer-events: auto;
+  cursor: ew-resize;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.tl-range::-moz-range-thumb {
+  width: 12px;
+  height: 26px;
+  border: 2px solid #ffffff;
+  border-radius: 5px;
+  background: var(--accent-dark, #245650);
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+
+.tl-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.tl-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tl-reset {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.tl-list {
+  margin-top: 4px;
+}
+
+.timeline-event.is-highlighted .timeline-card {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .tl-chart {
+    padding: 8px 20px 0;
+  }
+
+  .tl-overview {
+    margin: 0 20px;
+  }
+}

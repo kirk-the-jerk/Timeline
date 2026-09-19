@@ -7,6 +7,7 @@ import {
   TIMELINE_VERSION,
   createEvent,
   formatDisplayRange,
+  formatDisplayTimestamp,
   normalizeTimelineWithDiagnostics
 } from "../src/timeline.js";
 
@@ -352,8 +353,15 @@ function checkTimeRanges() {
   assert.equal("endTimestamp" in createEvent({ title: "Bad", date: "2026-04-10", tz: "UTC", endDate: "2026-04-01" }), false);
 
   assert.equal(formatDisplayRange(start, undefined), formatDisplayRange(start, { date: "2020-01-01", time: "09:00", tz: "UTC" }));
-  assert.ok(formatDisplayRange(start, { date: "2020-01-01", time: "17:00", tz: "UTC" }).includes("09:00 – 17:00 UTC"));
+  assert.ok(formatDisplayRange(start, { date: "2020-01-01", time: "17:00", tz: "UTC" }).endsWith("09:00 – 17:00"));
   assert.ok(formatDisplayRange(start, { date: "2020-03-01", time: "00:00", tz: "UTC" }).includes("–"));
+
+  const midnight = { date: "2020-01-01", time: "00:00", tz: "America/Vancouver" };
+  assert.ok(!formatDisplayTimestamp(midnight).includes("00:00"), "midnight is hidden");
+  assert.ok(!formatDisplayTimestamp(midnight).includes("Vancouver"), "time zone is hidden");
+  assert.ok(formatDisplayTimestamp({ ...midnight, time: "09:30" }).endsWith(" 09:30"));
+  const shown = formatDisplayRange(midnight, { date: "2020-03-01", time: "00:00", tz: "America/Vancouver" });
+  assert.ok(!shown.includes("00:00") && !shown.includes("Vancouver") && shown.includes("–"));
 }
 
 function normalizeFixture(name) {

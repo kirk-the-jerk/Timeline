@@ -187,19 +187,16 @@ export function downloadTimeline(timeline) {
   URL.revokeObjectURL(url);
 }
 
+// Display text leaves out the time zone, and the time when it is midnight
+// (which is also what an event with no time set defaults to).
 export function formatDisplayTimestamp(timestamp) {
   const safeTimestamp = normalizeTimestamp(timestamp || {});
   if (!safeTimestamp.date) return "No date";
-  const parsed = new Date(`${safeTimestamp.date}T00:00:00`);
-  const dateText = Number.isNaN(parsed.getTime())
-    ? safeTimestamp.date
-    : parsed.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    });
-  const timeText = safeTimestamp.time || "00:00";
-  return `${dateText} ${timeText} ${safeTimestamp.tz}`;
+  return formatDisplayDateTime(safeTimestamp.date, safeTimestamp.time);
+}
+
+function formatDisplayDateTime(date, time) {
+  return time && time !== "00:00" ? `${formatDisplayDate(date)} ${time}` : formatDisplayDate(date);
 }
 
 export function formatDisplayRange(timestamp, endTimestamp) {
@@ -213,13 +210,11 @@ export function formatDisplayRange(timestamp, endTimestamp) {
   if (end.date === start.date && end.time === start.time && end.tz === start.tz) {
     return formatDisplayTimestamp(start);
   }
-  const startText = `${formatDisplayDate(start.date)} ${start.time}`;
-  const endText = end.date === start.date && end.tz === start.tz
+  const startText = formatDisplayDateTime(start.date, start.time);
+  const endText = end.date === start.date && end.tz === start.tz && end.time !== "00:00"
     ? end.time
-    : `${formatDisplayDate(end.date)} ${end.time}`;
-  return end.tz === start.tz
-    ? `${startText} – ${endText} ${start.tz}`
-    : `${startText} ${start.tz} – ${endText} ${end.tz}`;
+    : formatDisplayDateTime(end.date, end.time);
+  return `${startText} – ${endText}`;
 }
 
 export function formatDisplayDate(date) {

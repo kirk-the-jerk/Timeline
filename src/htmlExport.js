@@ -3,6 +3,7 @@ import { bundleModules } from "./exportBundle.js";
 import { getPlayerType, normalizePlayerType } from "./players.js";
 
 export const EXPORT_RUNTIME_URL = new URL("./exportRuntime.js", import.meta.url).href;
+export const TIMELINE_PLAYER_CSS_URL = new URL("./timelinePlayer.css", import.meta.url).href;
 
 export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safeTimeline = normalizeTimeline({
@@ -11,7 +12,8 @@ export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   });
   const safePlayerType = normalizePlayerType(playerType);
   const runtime = await bundleModules(EXPORT_RUNTIME_URL, fetchText);
-  const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime);
+  const playerCss = await fetchText(TIMELINE_PLAYER_CSS_URL);
+  const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime, playerCss);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -29,7 +31,7 @@ async function fetchText(url) {
   return response.text();
 }
 
-export function buildStandaloneHtml(timeline, playerType, runtime) {
+export function buildStandaloneHtml(timeline, playerType, runtime, playerCss = "") {
   const title = escapeHtml(timeline.title);
   const timelineJson = JSON.stringify(timeline).replaceAll("<", "\\u003c");
   const player = getPlayerType(playerType);
@@ -41,7 +43,7 @@ export function buildStandaloneHtml(timeline, playerType, runtime) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${title}</title>
-    <style>${standaloneCss()}</style>
+    <style>${standaloneCss()}${playerCss}</style>
   </head>
   <body>
     <main class="shell">
@@ -115,7 +117,7 @@ p {
 .timeline::before {
   content: "";
   position: absolute;
-  left: 92px;
+  left: 197px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -125,13 +127,14 @@ p {
   position: relative;
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
-  gap: 18px;
+  gap: 28px;
   align-items: start;
 }
 .timeline-event::before {
   content: "";
   position: absolute;
-  left: 85px;
+  /* ::before ignores the * box-sizing rule: 14px dot + 3px ring each side = 20px, centred on the 198px line. */
+  left: 188px;
   top: 10px;
   width: 14px;
   height: 14px;
@@ -143,6 +146,7 @@ p {
   color: #245650;
   font-weight: 800;
   line-height: 1.35;
+  text-align: right;
 }
 .timeline-card {
   background: var(--panel);
@@ -268,6 +272,12 @@ a {
   .timeline-event,
   .field-summary div {
     grid-template-columns: 1fr;
+  }
+  .timeline-event {
+    gap: 6px;
+  }
+  .event-date {
+    text-align: left;
   }
 }
 `;

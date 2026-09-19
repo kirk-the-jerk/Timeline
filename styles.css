@@ -120,6 +120,17 @@ a {
   background: rgba(47, 111, 104, 0.1);
 }
 
+/* Player pages take a dropped file anywhere, so the whole panel lights up. */
+body.dragging .header-actions {
+  border-color: var(--accent);
+  background: rgba(47, 111, 104, 0.1);
+}
+
+body.dragging .player-panel {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -930,7 +941,7 @@ body.event-editor-open {
 .timeline::before {
   content: "";
   position: absolute;
-  left: 74px;
+  left: 163px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -941,14 +952,19 @@ body.event-editor-open {
   position: relative;
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
-  gap: 18px;
+  gap: 28px;
   align-items: start;
+}
+
+.timeline-event .event-date {
+  text-align: right;
 }
 
 .timeline-event::before {
   content: "";
   position: absolute;
-  left: 68px;
+  /* ::before ignores the * box-sizing rule: 14px dot + 3px ring each side = 20px, centred on the 164px line. */
+  left: 154px;
   top: 8px;
   width: 14px;
   height: 14px;
@@ -1254,5 +1270,10 @@ body.event-editor-open {
 
   .timeline-event {
     grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .timeline-event .event-date {
+    text-align: left;
   }
 }

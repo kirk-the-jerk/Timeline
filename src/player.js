@@ -3,8 +3,6 @@ import { renderPlayer } from "./playerRenderers.js";
 import { getPlayerType, normalizePlayerType } from "./players.js";
 import { normalizeTimeline, sortEvents } from "./timeline.js";
 
-const topbar = document.querySelector(".topbar");
-const headerActions = document.querySelector("#header-actions");
 const loadButton = document.querySelector("#open-load-file");
 const loadFileInput = document.querySelector("#load-file");
 const loadDialog = document.querySelector("#load-dialog");
@@ -24,8 +22,8 @@ createTimelineLoadController({
   closeButton: closeLoadDialogButton,
   openButton: loadButton,
   fileInput: loadFileInput,
-  dropTargets: [topbar],
-  dragClassTarget: headerActions,
+  dropTargets: [document.body],
+  dragClassTarget: document.body,
   progressBar: loadProgressBar,
   log: loadLog,
   onTimelineLoaded: async (loadedTimeline) => {
@@ -54,7 +52,7 @@ function init() {
 
 function renderEmptyState() {
   titleText.textContent = "No timeline loaded";
-  summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header or drop a timeline file onto the header.`;
+  summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header or drop a timeline file anywhere on this page.`;
   timelineEl.innerHTML = `<div class="empty-state">No timeline loaded.</div>`;
   loadButton.classList.add("attention");
 }

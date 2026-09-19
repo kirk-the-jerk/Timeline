@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { bundleModules } from "../src/exportBundle.js";
-import { EXPORT_RUNTIME_URL, buildStandaloneHtml } from "../src/htmlExport.js";
+import { EXPORT_RUNTIME_URL, TIMELINE_PLAYER_CSS_URL, buildStandaloneHtml } from "../src/htmlExport.js";
 import { normalizeTimeline } from "../src/timeline.js";
 
 if (!globalThis.crypto) {
@@ -17,6 +17,7 @@ const readFromDisk = async (url) => readFileSync(fileURLToPath(url), "utf8");
 
 async function main() {
   await checkExportRoundTrip();
+  await checkTimelinePlayerExport();
   await checkBundlerRejectsUnsafeInput();
   console.log("OK export runtime");
 }
@@ -53,6 +54,21 @@ async function checkExportRoundTrip() {
   assert.ok(rows.some((row) => row.innerHTML.includes("data:image/jpeg;base64,")), "embedded images render");
   assert.ok(rows.some((row) => row.innerHTML.includes("https://example.com/photo.jpg")), "linked images render");
   assert.ok(rows.some((row) => row.innerHTML.includes("–")), "time ranges render");
+}
+
+// The timeline player needs a real DOM (listeners, layout), so here it is only
+// checked to build, carry its styles, and compile as part of the export.
+async function checkTimelinePlayerExport() {
+  const timeline = makeTimeline();
+  const runtime = await bundleModules(EXPORT_RUNTIME_URL, readFromDisk);
+  const playerCss = await readFromDisk(TIMELINE_PLAYER_CSS_URL);
+  const html = buildStandaloneHtml(timeline, "timeline", runtime, playerCss);
+
+  assert.equal(JSON.parse(html.match(/id="player-data">([\s\S]*?)<\/script>/)[1]).value, "timeline");
+  assert.ok(html.includes(".tl-player"), "player styles are inlined");
+  const runtimeSource = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
+  assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: "export-runtime-timeline.js" }));
+  assert.ok(runtimeSource.includes("renderTimelinePlayer"));
 }
 
 async function checkBundlerRejectsUnsafeInput() {

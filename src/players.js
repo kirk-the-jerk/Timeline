@@ -8,8 +8,8 @@ export const PLAYER_TYPES = [
   {
     value: "timeline",
     label: "Timeline",
-    description: "Timeline player placeholder.",
-    available: false
+    description: "Chart of events over time, with range bars, a date scrubber, search and filters.",
+    available: true
   },
   {
     value: "slideshow",
