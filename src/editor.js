@@ -23,6 +23,7 @@ import {
   getEventTypeEmoji,
   getEventTypeLabel,
   getEventTypes,
+  isEndBeforeStart,
   makeFieldFromPreset,
   normalizeTimeline,
   resolveEventImages,
@@ -75,9 +76,11 @@ const customEventTypeLabelInput = document.querySelector("#custom-event-type-lab
 const addCustomEventTypeButton = document.querySelector("#add-custom-event-type");
 const eventTitleInput = document.querySelector("#event-title");
 const dateInput = document.querySelector("#event-date");
+const endDateInput = document.querySelector("#event-end-date");
 const datetimeOptions = document.querySelector("#datetime-options");
 const datetimeSummary = document.querySelector("#datetime-summary");
 const timeInput = document.querySelector("#event-time");
+const endTimeInput = document.querySelector("#event-end-time");
 const tzInput = document.querySelector("#event-tz");
 const locationOptions = document.querySelector("#location-options");
 const locationSummary = document.querySelector("#location-summary");
@@ -190,12 +193,21 @@ form.addEventListener("submit", async (event) => {
 
   const collectionIds = resolveCollectionIds(collectionInput.value);
 
+  const start = { date: dateInput.value, time: timeInput.value || "00:00", tz: tzInput.value || lastTimeZone };
+  if (endDateInput.value && isEndBeforeStart(start, { date: endDateInput.value, time: endTimeInput.value || "00:00", tz: start.tz })) {
+    setStatus("The end must not be earlier than the start.", "error");
+    endDateInput.focus();
+    return;
+  }
+
   const savedEvent = createEvent({
     type: typeInput.value,
     title: eventTitleInput.value,
     date: dateInput.value,
     time: timeInput.value || "00:00",
     tz: tzInput.value || lastTimeZone,
+    endDate: endDateInput.value,
+    endTime: endTimeInput.value || "00:00",
     location: locationInput.value,
     images: draftImages.map(toEventImage),
     fields: draftFields,
@@ -211,6 +223,7 @@ form.addEventListener("submit", async (event) => {
       id: previousEvent.id
     }
     : savedEvent;
+  if (!savedEvent.endTimestamp) delete nextEvent.endTimestamp;
 
   lastTimeZone = getEventTimeZone(nextEvent) || lastTimeZone;
   timeline.events = previousEvent
@@ -352,6 +365,9 @@ customEventTypeLabelInput.addEventListener("keydown", async (event) => {
 });
 
 timeInput.addEventListener("input", renderOptionalSummaries);
+endTimeInput.addEventListener("input", renderOptionalSummaries);
+dateInput.addEventListener("input", syncEndDateMin);
+endDateInput.addEventListener("input", renderOptionalSummaries);
 tzInput.addEventListener("change", renderOptionalSummaries);
 locationInput.addEventListener("input", renderOptionalSummaries);
 collectionInput.addEventListener("input", renderOptionalSummaries);
@@ -915,7 +931,7 @@ function render() {
     row.innerHTML = `
       <div class="event-type-emoji" role="img" aria-label="${escapeHtml(eventTypeTooltip)}" title="${escapeHtml(eventTypeTooltip)}">${escapeHtml(getEventTypeEmoji(event.type, timeline))}</div>
       <div class="event-summary">
-        <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp))}</div>
+        <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp, event.endTimestamp))}</div>
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
         ${renderEventCollections(event)}
       </div>
@@ -952,10 +968,22 @@ function renderEventCollections(event) {
   `;
 }
 
-function formatEditorEventTimestamp(timestamp) {
+function formatEditorEventTimestamp(timestamp, endTimestamp) {
   if (!timestamp?.date) return "No date";
+  const start = formatEditorDateTime(timestamp);
+  if (!endTimestamp?.date) return start;
+  const end = formatEditorDateTime(endTimestamp);
+  return end === start ? start : `${start} – ${end}`;
+}
+
+function formatEditorDateTime(timestamp) {
   const timeText = timestamp.time && timestamp.time !== "00:00" ? ` ${timestamp.time}` : "";
   return `${formatDisplayDate(timestamp.date)}${timeText}`;
+}
+
+function syncEndDateMin() {
+  endDateInput.min = dateInput.value;
+  renderOptionalSummaries();
 }
 
 function renderTimelineTitle() {
@@ -1074,12 +1102,15 @@ function renderImageSourceIcon(kind) {
 
 function renderOptionalSummaries() {
   const time = timeInput.value;
+  const endTime = endTimeInput.value;
   const location = locationInput.value.trim();
   const collection = collectionInput.value.trim();
   const imageLink = imageLinkInput.value.trim();
   const populatedFieldCount = draftFields.filter((field) => field.value).length;
 
-  datetimeSummary.textContent = time ? `${time} ${tzInput.value}` : "No time set";
+  datetimeSummary.textContent = time || endTime
+    ? `${time || "00:00"}${endTime ? ` – ${endTime}` : ""} ${tzInput.value}`
+    : "No time set";
   locationSummary.textContent = location || "No location";
   collectionSummary.textContent = collection || "No collection";
   imageSummary.textContent = draftImages.length > 0
@@ -1101,6 +1132,9 @@ function resetEventForm({ preserveEvent = null } = {}) {
   eventTitleInput.value = "";
   dateInput.value = preserveEvent?.timestamp?.date || new Date().toISOString().slice(0, 10);
   timeInput.value = preserveEvent?.timestamp?.time === "00:00" ? "" : preserveEvent?.timestamp?.time || "";
+  endDateInput.value = preserveEvent?.endTimestamp?.date || "";
+  endTimeInput.value = preserveEvent?.endTimestamp?.time === "00:00" ? "" : preserveEvent?.endTimestamp?.time || "";
+  syncEndDateMin();
   tzInput.value = getEventTimeZone(preserveEvent) || lastTimeZone;
   locationInput.value = preserveEvent?.location || "";
   collectionInput.value = preserveEvent
@@ -1152,7 +1186,7 @@ function closeOptionalSections() {
 }
 
 function openPopulatedOptionalSections() {
-  datetimeOptions.open = Boolean(timeInput.value);
+  datetimeOptions.open = Boolean(timeInput.value || endTimeInput.value);
   locationOptions.open = Boolean(locationInput.value.trim());
   collectionOptions.open = Boolean(collectionInput.value.trim());
   imageOptions.open = Boolean(imageLinkInput.value.trim() || draftImages.length > 0);
@@ -1175,6 +1209,9 @@ function startEditingEvent(eventId) {
   eventTitleInput.value = getEventTitle(event);
   dateInput.value = event.timestamp?.date || new Date().toISOString().slice(0, 10);
   timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";
+  endDateInput.value = event.endTimestamp?.date || "";
+  endTimeInput.value = event.endTimestamp?.time === "00:00" ? "" : event.endTimestamp?.time || "";
+  syncEndDateMin();
   tzInput.value = getEventTimeZone(event) || lastTimeZone;
   locationInput.value = event.location || "";
   collectionInput.value = getEventCollections(timeline, event).map((collection) => collection.title).join(", ");

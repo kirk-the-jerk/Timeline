@@ -316,7 +316,7 @@ function standaloneRuntime() {
 
       const date = document.createElement("div");
       date.className = "event-date";
-      date.textContent = formatDisplayTimestamp(event.timestamp);
+      date.textContent = formatDisplayRange(event.timestamp, event.endTimestamp);
 
       const card = document.createElement("div");
       card.className = "timeline-card";
@@ -435,19 +435,37 @@ function standaloneRuntime() {
     return String(safeTimestamp.date || "") + "T" + String(safeTimestamp.time || "00:00") + " " + String(safeTimestamp.tz || "");
   }
 
-  function formatDisplayTimestamp(timestamp) {
-    const safeTimestamp = timestamp || {};
-    const date = safeTimestamp.date || "";
-    if (!date) return "No date";
+  function formatDisplayDate(date) {
     const parsed = new Date(date + "T00:00:00");
-    const dateText = Number.isNaN(parsed.getTime())
+    return Number.isNaN(parsed.getTime())
       ? date
       : parsed.toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric"
       });
-    return dateText + " " + (safeTimestamp.time || "00:00") + " " + (safeTimestamp.tz || "");
+  }
+
+  function formatDisplayTimestamp(timestamp) {
+    const safeTimestamp = timestamp || {};
+    const date = safeTimestamp.date || "";
+    if (!date) return "No date";
+    return formatDisplayDate(date) + " " + (safeTimestamp.time || "00:00") + " " + (safeTimestamp.tz || "");
+  }
+
+  function formatDisplayRange(timestamp, endTimestamp) {
+    if (!endTimestamp || !endTimestamp.date) return formatDisplayTimestamp(timestamp);
+    const start = { date: (timestamp && timestamp.date) || "", time: (timestamp && timestamp.time) || "00:00", tz: (timestamp && timestamp.tz) || "" };
+    if (!start.date) return formatDisplayTimestamp(timestamp);
+    const end = { date: endTimestamp.date, time: endTimestamp.time || "00:00", tz: endTimestamp.tz || start.tz };
+    if (end.date === start.date && end.time === start.time && end.tz === start.tz) return formatDisplayTimestamp(start);
+    const startText = formatDisplayDate(start.date) + " " + start.time;
+    const endText = end.date === start.date && end.tz === start.tz
+      ? end.time
+      : formatDisplayDate(end.date) + " " + end.time;
+    return end.tz === start.tz
+      ? startText + " \u2013 " + endText + " " + start.tz
+      : startText + " " + start.tz + " \u2013 " + endText + " " + end.tz;
   }
 
   function canRenderImageMedia(media) {

@@ -1,6 +1,6 @@
 import {
   canRenderImageMedia,
-  formatDisplayTimestamp,
+  formatDisplayRange,
   getEventCollections,
   getEventTitle,
   getEventTypeDisplay,
@@ -48,7 +48,7 @@ function renderEventListItem(timeline, event) {
   const row = document.createElement("article");
   row.className = "timeline-event";
   row.innerHTML = `
-    <div class="event-date">${escapeHtml(formatDisplayTimestamp(event.timestamp))}</div>
+    <div class="event-date">${escapeHtml(formatDisplayRange(event.timestamp, event.endTimestamp))}</div>
     <div class="timeline-card">
       ${renderEventGallery(timeline, event)}
       <h2>${escapeHtml(getEventTitle(event))}</h2>

@@ -3,7 +3,7 @@
 Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pass
 (see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. Done since: P1 confirmations
 (clear draft, delete event, import), the first two P4 bullets (placeholder players hidden), all of P8,
-and most of P9. Everything else is still open.
+P3 (time ranges, schema v9, no-op migrations collapsed), and most of P9. Everything else is still open.
 `python scripts/check_js.py` passes.
 
 ## Framing: objectives vs. outcomes
@@ -85,8 +85,9 @@ worth building next (P4) is exactly the view that needs it.
 
 Do this *before* freezing, or the freeze at 8 is immediately followed by a 9.
 
-- [ ] Add an optional end timestamp / range to the event shape. Migrate to v9.
-- [ ] Then stop versioning until there's an external consumer. Collapse the no-op migrations (`migrateV2ToV3`, `migrateV3ToV4`).
+- [x] Add an optional end timestamp / range to the event shape. Migrate to v9. Done as `events[].endTimestamp` (same shape as `timestamp`, omitted for point events) with an End date / End time in the event form. The simple player, editor list and standalone export show ranges as "start – end". Range bars await the `timeline` player (P4).
+- [x] Collapse the no-op migrations. `migrateV2ToV3` is gone and `migrateV3ToV4` is now `noteIgnoredLegacyEventImages`, which keeps only the "ignored legacy image fields" diagnostic. Files older than v4 no longer get "migrated-v2/v3-schema" warnings.
+- [ ] Policy, not code: don't bump the schema version again until there's an external consumer. Additive optional fields can ship under v9.
 - [ ] Keep the 64-code diagnostic system — it's genuinely good work. It's just insurance on the one thing that wasn't at risk.
 
 ## P4 — Build one real player, and make it navigable

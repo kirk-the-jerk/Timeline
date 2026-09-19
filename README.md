@@ -49,7 +49,7 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
 
 ## Schema Compatibility
 
-Current exports use schema version `8`.
+Current exports use schema version `9`.
 
 - Version 1-style events with `name` and `date` are migrated on import.
 - Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
@@ -58,6 +58,7 @@ Current exports use schema version `8`.
 - Version 6 adds top-level `collections[]` (each with an `id`, `kind`, and `title`). Events reference collections by id in `events[].collectionIds[]`.
 - Version 7 renames the built-in event types `education` to `school` and `move` to `home`, in both `eventTypes[]` and `events[].type`.
 - Version 8 renames the built-in event type `job` to `work`, in both `eventTypes[]` and `events[].type`.
+- Version 9 adds an optional `events[].endTimestamp` (same `date` / `time` / `tz` shape as `timestamp`) for events that span a range, such as "lived in Vancouver 2015-2020". It is omitted for point-in-time events. An end that is earlier than the start, or has no date, is dropped with a warning on import.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
@@ -68,7 +69,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
 ```json
 {
   "format": "local-timeline-poc",
-  "version": 8,
+  "version": 9,
   "title": "Untitled timeline",
   "updatedAt": "2026-06-25T00:00:00.000Z",
   "eventTypes": [
@@ -106,6 +107,11 @@ In IndexedDB, the active draft stores the timeline document and media records se
       "timestamp": {
         "date": "2026-06-25",
         "time": "09:00",
+        "tz": "America/Vancouver"
+      },
+      "endTimestamp": {
+        "date": "2026-06-27",
+        "time": "17:00",
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",

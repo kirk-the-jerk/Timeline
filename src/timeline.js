@@ -1,5 +1,5 @@
 export const TIMELINE_FORMAT = "local-timeline-poc";
-export const TIMELINE_VERSION = 8;
+export const TIMELINE_VERSION = 9;
 export const DEFAULT_EVENT_TYPE = "misc";
 
 export const EVENT_TYPES = [
@@ -64,12 +64,17 @@ export function createEmptyTimeline() {
   };
 }
 
-export function createEvent({ type, title, date, time, tz, location, images, fields, collectionIds, eventTypes, collections }) {
+export function createEvent({ type, title, date, time, tz, endDate, endTime, location, images, fields, collectionIds, eventTypes, collections }) {
+  const timestamp = normalizeTimestamp({ date, time, tz });
+  const endTimestamp = cleanText(endDate)
+    ? normalizeEndTimestamp({ date: endDate, time: endTime, tz: timestamp.tz }, timestamp)
+    : null;
   return {
     id: crypto.randomUUID(),
     type: normalizeEventType(type, eventTypes),
     title: cleanText(title) || "Untitled event",
-    timestamp: normalizeTimestamp({ date, time, tz }),
+    timestamp,
+    ...(endTimestamp ? { endTimestamp } : {}),
     location: cleanText(location),
     images: normalizeEventImages(images),
     fields: normalizeFields(fields),
@@ -195,6 +200,26 @@ export function formatDisplayTimestamp(timestamp) {
     });
   const timeText = safeTimestamp.time || "00:00";
   return `${dateText} ${timeText} ${safeTimestamp.tz}`;
+}
+
+export function formatDisplayRange(timestamp, endTimestamp) {
+  if (!endTimestamp?.date) return formatDisplayTimestamp(timestamp);
+  const start = normalizeTimestamp(timestamp || {});
+  const end = {
+    date: cleanText(endTimestamp.date),
+    time: cleanText(endTimestamp.time) || "00:00",
+    tz: cleanText(endTimestamp.tz) || start.tz
+  };
+  if (end.date === start.date && end.time === start.time && end.tz === start.tz) {
+    return formatDisplayTimestamp(start);
+  }
+  const startText = `${formatDisplayDate(start.date)} ${start.time}`;
+  const endText = end.date === start.date && end.tz === start.tz
+    ? end.time
+    : `${formatDisplayDate(end.date)} ${end.time}`;
+  return end.tz === start.tz
+    ? `${startText} – ${endText} ${start.tz}`
+    : `${startText} ${start.tz} – ${endText} ${end.tz}`;
 }
 
 export function formatDisplayDate(date) {
@@ -376,6 +401,7 @@ function normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, 
       time: event.time,
       tz: event.tz
     }, diagnostics, path);
+  const endTimestamp = normalizeEndTimestamp(event.endTimestamp, timestamp, diagnostics, `${path}.endTimestamp`);
   const id = cleanText(event.id);
   if (!id) {
     addDiagnostic(diagnostics, "warning", "generated-event-id", "Event was missing an id; assigned a new id.", `${path}.id`);
@@ -387,6 +413,7 @@ function normalizeEvent(event, mediaById, eventTypes, collections, diagnostics, 
     type: normalizeEventType(event.type, eventTypes, diagnostics, `${path}.type`),
     title: getEventTitle(event),
     timestamp,
+    ...(endTimestamp ? { endTimestamp } : {}),
     location: cleanText(event.location),
     images: normalizeEventImages(event.images, mediaById, diagnostics, `${path}.images`),
     fields: normalizeFields(event.fields, diagnostics, `${path}.fields`),
@@ -604,6 +631,49 @@ function normalizeTimestamp(timestamp, diagnostics = [], path = "$.timestamp") {
   };
 }
 
+function normalizeEndTimestamp(endTimestamp, startTimestamp, diagnostics = [], path = "$.endTimestamp") {
+  if (endTimestamp === undefined || endTimestamp === null) return null;
+  if (typeof endTimestamp !== "object") {
+    addDiagnostic(diagnostics, "warning", "invalid-end-timestamp-dropped", "Ignored end timestamp because it was not an object.", path);
+    return null;
+  }
+
+  const date = cleanText(endTimestamp.date);
+  const time = cleanText(endTimestamp.time);
+  const tz = cleanText(endTimestamp.tz);
+
+  if (!date) {
+    addDiagnostic(diagnostics, "warning", "end-timestamp-missing-date", "Ignored end timestamp because it was missing a date.", `${path}.date`);
+    return null;
+  }
+  if (!isIsoDate(date)) {
+    addDiagnostic(diagnostics, "warning", "non-iso-end-date", "End timestamp date is not YYYY-MM-DD; preserved the original value.", `${path}.date`);
+  }
+  if (time && !isClockTime(time)) {
+    addDiagnostic(diagnostics, "warning", "non-standard-end-time", "End timestamp time is not HH:MM; preserved the original value.", `${path}.time`);
+  }
+
+  const normalized = {
+    date,
+    time: time || "00:00",
+    tz: tz || startTimestamp.tz
+  };
+  if (isEndBeforeStart(startTimestamp, normalized)) {
+    addDiagnostic(diagnostics, "warning", "end-before-start", "Ignored end timestamp because it was earlier than the start.", path);
+    return null;
+  }
+  return normalized;
+}
+
+// Only comparable when both sides are well-formed and share a time zone.
+export function isEndBeforeStart(start, end) {
+  if (!start || !end) return false;
+  if (!isIsoDate(start.date) || !isIsoDate(end.date)) return false;
+  if (!isClockTime(start.time) || !isClockTime(end.time)) return false;
+  if (start.tz !== end.tz) return false;
+  return `${end.date}T${end.time}` < `${start.date}T${start.time}`;
+}
+
 function normalizeFields(fields, diagnostics = [], path = "$.fields") {
   if (fields === undefined) return [];
   if (!Array.isArray(fields)) {
@@ -723,11 +793,8 @@ function migrateTimelineInput(input, diagnostics) {
   if (version < 2) {
     migrated = migrateV1ToV2(migrated, diagnostics);
   }
-  if (version < 3) {
-    migrated = migrateV2ToV3(migrated, diagnostics);
-  }
   if (version < 4) {
-    migrated = migrateV3ToV4(migrated, diagnostics);
+    noteIgnoredLegacyEventImages(migrated, diagnostics);
   }
   if (version < 5) {
     migrated = migrateV4ToV5(migrated, diagnostics);
@@ -740,6 +807,9 @@ function migrateTimelineInput(input, diagnostics) {
   }
   if (version < 8) {
     migrated = migrateV7ToV8(migrated, diagnostics);
+  }
+  if (version < 9) {
+    migrated = migrateV8ToV9(migrated, diagnostics);
   }
   if (version > TIMELINE_VERSION) {
     addDiagnostic(diagnostics, "warning", "future-schema-version", `Timeline schema version ${input.version} is newer than this app supports. Known fields were loaded and unknown fields were preserved.`, "$.version");
@@ -777,28 +847,15 @@ function migrateV1ToV2(input, diagnostics) {
   };
 }
 
-function migrateV2ToV3(input, diagnostics) {
-  addDiagnostic(diagnostics, "warning", "migrated-v2-schema", "Applied version 2 to version 3 timeline migration.", "$.version");
-  return {
-    ...input,
-    version: 3
-  };
-}
-
-function migrateV3ToV4(input, diagnostics) {
-  if (Array.isArray(input.events)) {
-    const hasLegacyImages = input.events.some((event) => event && typeof event === "object"
-      && (event.image !== undefined || event.imageId !== undefined || event.mediaId !== undefined || event.imageLink !== undefined));
-    if (hasLegacyImages) {
-      addDiagnostic(diagnostics, "warning", "ignored-legacy-event-images", "Ignored legacy event image fields while loading the gallery-based schema.", "$.events");
-    }
+// Versions 2 and 3 changed no data, so there is no migration for them. Version 4 moved
+// images into galleries; the old single-image fields are dropped by normalizeEvent.
+function noteIgnoredLegacyEventImages(input, diagnostics) {
+  if (!Array.isArray(input.events)) return;
+  const hasLegacyImages = input.events.some((event) => event && typeof event === "object"
+    && (event.image !== undefined || event.imageId !== undefined || event.mediaId !== undefined || event.imageLink !== undefined));
+  if (hasLegacyImages) {
+    addDiagnostic(diagnostics, "warning", "ignored-legacy-event-images", "Ignored legacy event image fields while loading the gallery-based schema.", "$.events");
   }
-
-  addDiagnostic(diagnostics, "warning", "migrated-v3-schema", "Applied version 3 to version 4 timeline migration.", "$.version");
-  return {
-    ...input,
-    version: 4
-  };
 }
 
 function migrateV4ToV5(input, diagnostics) {
@@ -836,6 +893,14 @@ function migrateV7ToV8(input, diagnostics) {
     version: 8,
     eventTypes: migrateLegacyEventTypes(input.eventTypes, V8_EVENT_TYPE_ALIASES),
     events: migrateLegacyEventEventTypes(input.events, V8_EVENT_TYPE_ALIASES)
+  };
+}
+
+function migrateV8ToV9(input, diagnostics) {
+  addDiagnostic(diagnostics, "warning", "migrated-v8-schema", "Applied version 8 to version 9 timeline migration (events may now have an optional end timestamp).", "$.version");
+  return {
+    ...input,
+    version: 9
   };
 }
 
@@ -1053,6 +1118,7 @@ const EVENT_KEYS = new Set([
   "title",
   "name",
   "timestamp",
+  "endTimestamp",
   "date",
   "time",
   "tz",

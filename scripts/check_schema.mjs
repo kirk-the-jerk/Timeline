@@ -5,6 +5,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   TIMELINE_VERSION,
+  createEvent,
+  formatDisplayRange,
   normalizeTimelineWithDiagnostics
 } from "../src/timeline.js";
 
@@ -26,6 +28,8 @@ function main() {
   checkLegacyEventTypeAliases();
   checkLegacyJobEventTypeAlias();
   checkCurrentDraftStaleEventTypeAliases();
+  checkV8ToV9Migration();
+  checkTimeRanges();
   console.log("OK schema fixtures");
 }
 
@@ -43,8 +47,6 @@ function checkV1Legacy() {
     "migrated-v1-name",
     "migrated-v1-timestamp",
     "migrated-v1-schema",
-    "migrated-v2-schema",
-    "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
     "migrated-v6-schema",
@@ -64,8 +66,6 @@ function checkV2EmbeddedImage() {
   assert.deepEqual(timeline.events[0].images, []);
   assert.equal(timeline.events[0].image, undefined);
   assertCodesInclude(diagnostics, [
-    "migrated-v2-schema",
-    "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
     "migrated-v6-schema",
@@ -107,7 +107,6 @@ function checkMalformedRecoverable() {
     "malformed-event-replaced",
     "invalid-fields-dropped",
     "ignored-legacy-event-images",
-    "migrated-v3-schema",
     "migrated-v4-schema",
     "migrated-v5-schema",
     "migrated-v6-schema",
@@ -308,6 +307,53 @@ function checkCurrentDraftStaleEventTypeAliases() {
   assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "job"));
   assert.equal(timeline.events.find((event) => event.title === "Moved apartments").type, "home");
   assert.equal(timeline.events.find((event) => event.title === "Started a new role").type, "work");
+}
+
+function timelineWithEvents(version, events) {
+  return {
+    format: "local-timeline-poc",
+    version,
+    title: "Range timeline",
+    updatedAt: "2026-06-25T00:00:00.000Z",
+    events
+  };
+}
+
+function checkV8ToV9Migration() {
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics(timelineWithEvents(8, [
+    { id: "event-1", type: "misc", title: "Point event", timestamp: { date: "2026-05-01", time: "09:00", tz: "UTC" } }
+  ]));
+  assert.equal(timeline.version, 9);
+  assert.equal("endTimestamp" in timeline.events[0], false);
+  assertCodesInclude(diagnostics, ["migrated-v8-schema"]);
+}
+
+function checkTimeRanges() {
+  const start = { date: "2020-01-01", time: "09:00", tz: "UTC" };
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics(timelineWithEvents(TIMELINE_VERSION, [
+    { id: "ok", title: "Range", timestamp: start, endTimestamp: { date: "2020-03-01" } },
+    { id: "backwards", title: "Backwards", timestamp: start, endTimestamp: { date: "2019-12-31", time: "09:00", tz: "UTC" } },
+    { id: "no-date", title: "No date", timestamp: start, endTimestamp: { time: "10:00" } },
+    { id: "not-object", title: "Not object", timestamp: start, endTimestamp: "later" },
+    { id: "cross-zone", title: "Cross zone", timestamp: start, endTimestamp: { date: "2020-01-01", time: "08:00", tz: "America/Vancouver" } }
+  ]));
+  const byId = Object.fromEntries(timeline.events.map((event) => [event.id, event]));
+
+  assert.deepEqual(byId.ok.endTimestamp, { date: "2020-03-01", time: "00:00", tz: "UTC" });
+  assert.equal("endTimestamp" in byId.backwards, false);
+  assert.equal("endTimestamp" in byId["no-date"], false);
+  assert.equal("endTimestamp" in byId["not-object"], false);
+  assert.equal(byId["cross-zone"].endTimestamp.tz, "America/Vancouver");
+  assertCodesInclude(diagnostics, ["end-before-start", "end-timestamp-missing-date", "invalid-end-timestamp-dropped"]);
+
+  const created = createEvent({ title: "Trip", date: "2026-04-10", time: "00:00", tz: "UTC", endDate: "2026-04-20", endTime: "00:00" });
+  assert.deepEqual(created.endTimestamp, { date: "2026-04-20", time: "00:00", tz: "UTC" });
+  assert.equal("endTimestamp" in createEvent({ title: "Day", date: "2026-04-10", tz: "UTC" }), false);
+  assert.equal("endTimestamp" in createEvent({ title: "Bad", date: "2026-04-10", tz: "UTC", endDate: "2026-04-01" }), false);
+
+  assert.equal(formatDisplayRange(start, undefined), formatDisplayRange(start, { date: "2020-01-01", time: "09:00", tz: "UTC" }));
+  assert.ok(formatDisplayRange(start, { date: "2020-01-01", time: "17:00", tz: "UTC" }).includes("09:00 – 17:00 UTC"));
+  assert.ok(formatDisplayRange(start, { date: "2020-03-01", time: "00:00", tz: "UTC" }).includes("–"));
 }
 
 function normalizeFixture(name) {
