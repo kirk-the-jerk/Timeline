@@ -129,6 +129,7 @@ html.mp-lock {
   background: rgba(255, 255, 255, 0.85);
   color: var(--muted, #666666);
   padding: 2px 8px;
+  max-width: min(26rem, 90%);
   font-size: 0.75rem;
 }
 

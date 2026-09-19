@@ -62,3 +62,19 @@ export function normalizeTileSourceId(value) {
 export function getTileSource(id) {
   return TILE_SOURCES.find((source) => source.id === normalizeTileSourceId(id));
 }
+
+// A page opened from disk (`file://`) sends no Referer, and the OpenStreetMap
+// tile servers can refuse such requests with a 403 (their tile policy asks for
+// a Referer). The other sources in the list load from disk. So when OSM has
+// failed on a file page, the player uses this source instead, for that visit.
+export const FILE_PAGE_FALLBACK_ID = "opentopomap";
+// How many failed tiles, with none loaded, count as "this source is refused".
+export const TILE_REFUSED_ERROR_COUNT = 3;
+
+// The source to switch to when `sourceId` is failing on a page served from
+// `protocol` (`location.protocol`), or null when there is nothing better to try.
+export function fallbackTileSource(sourceId, protocol) {
+  return protocol === "file:" && normalizeTileSourceId(sourceId) === "osm"
+    ? getTileSource(FILE_PAGE_FALLBACK_ID)
+    : null;
+}

@@ -23,7 +23,7 @@ import {
   stepIndex,
   summarizeMap
 } from "../src/mapModel.js";
-import { TILE_SOURCES, getTileSource, normalizeTileSourceId } from "../src/mapTiles.js";
+import { FILE_PAGE_FALLBACK_ID, TILE_SOURCES, fallbackTileSource, getTileSource, normalizeTileSourceId } from "../src/mapTiles.js";
 import { normalizeTimeline, sortEvents } from "../src/timeline.js";
 
 if (!globalThis.crypto) {
@@ -267,4 +267,13 @@ function checkTiles() {
   assert.ok(getTileSource("nasa-blue-marble").maxZoom > 8, "and is enlarged past that");
   assert.equal(getTileSource("opentopomap").maxZoom, 17, "OpenTopoMap has no tiles past zoom 17");
   assert.equal(getTileSource(undefined).id, "osm");
+
+  // A page opened from disk sends no Referer, and OSM can refuse it.
+  assert.equal(fallbackTileSource("osm", "file:")?.id, FILE_PAGE_FALLBACK_ID);
+  assert.equal(fallbackTileSource("nope", "file:")?.id, FILE_PAGE_FALLBACK_ID, "an unknown id counts as the default, OSM");
+  assert.equal(fallbackTileSource("osm", "https:"), null, "a served page sends a Referer");
+  assert.equal(fallbackTileSource("esri-imagery", "file:"), null, "only OSM is switched away from");
+  assert.equal(fallbackTileSource(FILE_PAGE_FALLBACK_ID, "file:"), null, "no loop");
+  assert.notEqual(FILE_PAGE_FALLBACK_ID, "osm");
+  assert.ok(TILE_SOURCES.some((source) => source.id === FILE_PAGE_FALLBACK_ID));
 }

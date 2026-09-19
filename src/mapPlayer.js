@@ -22,7 +22,7 @@ import {
   stepIndex,
   summarizeMap
 } from "./mapModel.js";
-import { TILE_SOURCES, getTileSource } from "./mapTiles.js";
+import { TILE_REFUSED_ERROR_COUNT, TILE_SOURCES, fallbackTileSource, getTileSource } from "./mapTiles.js";
 
 const MAP_SETTINGS_KEY = "timeline-map-settings";
 const MAP_NARROW_QUERY = "(max-width: 759px)";
@@ -51,6 +51,7 @@ export function renderMapPlayer({ container, timeline, events }) {
   let arrowLayer = null;
   let dotLayer = null;
   let tilesLoaded = false;
+  let tilesNoteIsSwitch = false;
   let resizeObserver = null;
   let reducedMotion = false;
   let destroyed = false;
@@ -254,7 +255,8 @@ export function renderMapPlayer({ container, timeline, events }) {
     tileLayer?.remove();
     const source = getTileSource(settings.tileSource);
     tilesLoaded = false;
-    stage.tilesNoteEl.hidden = true;
+    let tileErrors = 0;
+    showTilesNote(null);
     map.setMaxZoom(source.maxZoom);
     tileLayer = Leaflet.tileLayer(source.url, {
       attribution: source.attribution,
@@ -268,12 +270,32 @@ export function renderMapPlayer({ container, timeline, events }) {
     // whole source called unavailable, so one missing tile doesn't raise it.
     tileLayer.on("tileload", () => {
       tilesLoaded = true;
-      stage.tilesNoteEl.hidden = true;
+      // The note that explains a switch stays; "unavailable" goes.
+      if (!tilesNoteIsSwitch) showTilesNote(null);
     });
     tileLayer.on("tileerror", () => {
-      if (!tilesLoaded) stage.tilesNoteEl.hidden = false;
+      if (tilesLoaded) return;
+      tileErrors += 1;
+      // OpenStreetMap can refuse a page opened from disk. Try one that doesn't.
+      const fallback = tileErrors >= TILE_REFUSED_ERROR_COUNT
+        ? fallbackTileSource(source.id, globalThis.location?.protocol)
+        : null;
+      if (fallback) {
+        settings.tileSource = fallback.id;
+        applyTileSource();
+        syncSettingsUi();
+        showTilesNote(`${source.label} does not load for a page opened from disk, so this map shows ${fallback.label}. Choose another map under Settings if you prefer.`, { isSwitch: true });
+        return;
+      }
+      if (!fallbackTileSource(source.id, globalThis.location?.protocol)) showTilesNote("Map tiles unavailable");
     });
     tileLayer.addTo(map);
+  }
+
+  function showTilesNote(text, { isSwitch = false } = {}) {
+    tilesNoteIsSwitch = Boolean(text) && isSwitch;
+    stage.tilesNoteEl.hidden = !text;
+    if (text) stage.tilesNoteEl.textContent = text;
   }
 
   // ---- drawing ------------------------------------------------------------

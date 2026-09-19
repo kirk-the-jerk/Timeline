@@ -218,8 +218,11 @@ The tile source is a small list of `{ id, label, url, attribution, maxZoom, kind
 - **Attribution is always visible**, bottom right, and never behind a toggle. The list carries each source's
   own text.
 - **Requirements from the OSM tile policy:** no pre-fetching, so there is no offline-cache feature; the page must
-  send a Referer. `file://` pages send none. A probe with no Referer got a 200 from OSM, Esri and Carto, but
-  that was curl and not a browser, so a real exported file opened from disk has to be tried before this is trusted.
+  send a Referer. `file://` pages send none. **Confirmed a problem:** an exported file opened from disk got 403s
+  from OSM in a real browser, though curl and headless Edge with no Referer both got 200, so it is not a rule that
+  fires every time. **As built:** on a `file:` page, when OSM has failed three tiles with none loaded, the player
+  switches to OpenTopoMap for that visit (`fallbackTileSource` in `mapTiles.js`), not saved, with a note saying so.
+  The other sources loaded from disk in the same test. A page served over http(s) is not switched.
 - **Tiles are a network dependency**, so the file is no longer fully offline (section 10). With no tiles the map
   still works: dots, dashed lines and the panels on a plain background, with "Map tiles unavailable" under the
   attribution. A failed tile is never an error dialog.
