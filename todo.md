@@ -71,9 +71,9 @@ file is the product's whole shareability story and it's the only code path with 
 hand-degraded. Every future player must be written twice — a tax landing directly on the work that
 matters most next (P4).
 
-- [ ] Extract the runtime into a real `.js` file, inlined into the export at build/export time rather than maintained as a parallel copy.
-- [ ] Add it to `JS_FILES` in [scripts/check_js.py](scripts/check_js.py) so syntax is actually checked.
-- [ ] Add a round-trip test: export → import → assert the timeline survives. Nothing currently asserts the product's core promise.
+- [x] Extract the runtime into a real `.js` file, inlined into the export at export time rather than maintained as a parallel copy. [src/exportRuntime.js](src/exportRuntime.js) is the entry point; [src/exportBundle.js](src/exportBundle.js) inlines it and its imports (`playerRenderers.js`, `players.js`, `timeline.js`) into the page, so the export runs the same code as `player.html`. The 305-line string and its twelve duplicate functions are gone. Cost: every export now carries all of `timeline.js` (about 48 KB of script) since there is no tree-shaking.
+- [x] Add it to `JS_FILES` in [scripts/check_js.py](scripts/check_js.py) so syntax is actually checked.
+- [x] Add a round-trip test: export → import → assert the timeline survives. [scripts/check_export.mjs](scripts/check_export.mjs) runs from `check_js.py`: it builds an export, parses the inlined script, runs it against a stub DOM, and asserts the embedded JSON normalizes back to the original timeline.
 
 ## P3 — Add time ranges, then freeze the schema
 

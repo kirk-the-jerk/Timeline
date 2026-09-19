@@ -557,7 +557,12 @@ async function saveTimelineAs(format) {
 
   if (format === "html-single") {
     const player = getPlayerType(htmlPlayerTypeInput.value);
-    downloadStandaloneHtml(exportTimeline, player.value);
+    try {
+      await downloadStandaloneHtml(exportTimeline, player.value);
+    } catch (error) {
+      setStatus(`HTML export failed: ${error.message}`);
+      return;
+    }
     saveDialog.close();
     setStatus(`${player.label} HTML export started.`);
   }

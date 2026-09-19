@@ -14,7 +14,10 @@ JS_FILES = [
     "src/editor.js",
     "src/player.js",
     "src/htmlExport.js",
+    "src/exportBundle.js",
+    "src/exportRuntime.js",
     "scripts/check_schema.mjs",
+    "scripts/check_export.mjs",
 ]
 WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
 
@@ -36,9 +39,10 @@ def main():
             failures += 1
 
     if failures == 0:
-        result = subprocess.run([str(node), node_readable_path(node, ROOT / "scripts/check_schema.mjs")], cwd=ROOT)
-        if result.returncode != 0:
-            failures += 1
+        for script in ("scripts/check_schema.mjs", "scripts/check_export.mjs"):
+            result = subprocess.run([str(node), node_readable_path(node, ROOT / script)], cwd=ROOT)
+            if result.returncode != 0:
+                failures += 1
 
     return 1 if failures else 0
 

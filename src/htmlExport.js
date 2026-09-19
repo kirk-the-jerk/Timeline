@@ -1,13 +1,17 @@
 import { formatTimelineDownloadBaseName, normalizeTimeline } from "./timeline.js";
+import { bundleModules } from "./exportBundle.js";
 import { getPlayerType, normalizePlayerType } from "./players.js";
 
-export function downloadStandaloneHtml(timeline, playerType = "simple") {
+export const EXPORT_RUNTIME_URL = new URL("./exportRuntime.js", import.meta.url).href;
+
+export async function downloadStandaloneHtml(timeline, playerType = "simple") {
   const safeTimeline = normalizeTimeline({
     ...timeline,
     updatedAt: new Date().toISOString()
   });
   const safePlayerType = normalizePlayerType(playerType);
-  const html = buildStandaloneHtml(safeTimeline, safePlayerType);
+  const runtime = await bundleModules(EXPORT_RUNTIME_URL, fetchText);
+  const html = buildStandaloneHtml(safeTimeline, safePlayerType, runtime);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -19,7 +23,13 @@ export function downloadStandaloneHtml(timeline, playerType = "simple") {
   URL.revokeObjectURL(url);
 }
 
-function buildStandaloneHtml(timeline, playerType) {
+async function fetchText(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load ${url} (${response.status}).`);
+  return response.text();
+}
+
+export function buildStandaloneHtml(timeline, playerType, runtime) {
   const title = escapeHtml(timeline.title);
   const timelineJson = JSON.stringify(timeline).replaceAll("<", "\\u003c");
   const player = getPlayerType(playerType);
@@ -46,7 +56,7 @@ function buildStandaloneHtml(timeline, playerType) {
     </main>
     <script type="application/json" id="timeline-data">${timelineJson}</script>
     <script type="application/json" id="player-data">${playerJson}</script>
-    <script>${standaloneRuntime()}</script>
+    <script>${runtime}</script>
   </body>
 </html>
 `;
@@ -260,330 +270,6 @@ a {
     grid-template-columns: 1fr;
   }
 }
-`;
-}
-
-function standaloneRuntime() {
-  return `
-(function () {
-  const DEFAULT_EVENT_TYPE = "misc";
-  const EVENT_TYPES = [
-    { value: "misc", label: "Misc", emoji: "📌" },
-    { value: "life", label: "Life", emoji: "✨" },
-    { value: "family", label: "Family", emoji: "👨‍👩‍👧‍👦" },
-    { value: "friends", label: "Friends", emoji: "🤝" },
-    { value: "health", label: "Health", emoji: "🩺" },
-    { value: "home", label: "Home", emoji: "🏠" },
-    { value: "school", label: "School", emoji: "🎓" },
-    { value: "travel", label: "Travel", emoji: "✈️" },
-    { value: "work", label: "Work", emoji: "💼" }
-  ];
-
-  const timelineData = JSON.parse(document.getElementById("timeline-data").textContent);
-  const playerData = JSON.parse(document.getElementById("player-data").textContent);
-  const title = document.getElementById("timeline-title");
-  const summary = document.getElementById("timeline-summary");
-  const timeline = document.getElementById("timeline");
-  const events = sortEvents(timelineData.events || []);
-  const eventTypes = normalizeEventTypes(timelineData.eventTypes);
-  const collections = normalizeCollections(timelineData.collections);
-  const mediaById = new Map((timelineData.media || []).map((item) => [item.id, item]));
-  const PLAYER_RENDERERS = {
-    simple: renderSimplePlayer,
-    timeline: renderPlaceholderPlayer,
-    slideshow: renderPlaceholderPlayer,
-    map: renderPlaceholderPlayer
-  };
-
-  title.textContent = timelineData.title || "Untitled timeline";
-  summary.textContent = playerData.label + " player / " + events.length + " event" + (events.length === 1 ? "" : "s");
-  renderPlayer();
-
-  function renderPlayer() {
-    const renderer = PLAYER_RENDERERS[playerData.value] || PLAYER_RENDERERS.simple;
-    renderer();
-  }
-
-  function renderSimplePlayer() {
-    if (events.length === 0) {
-      timeline.innerHTML = '<div class="empty-state">This timeline does not contain any events.</div>';
-      return;
-    }
-
-    for (const event of events) {
-      const row = document.createElement("article");
-      row.className = "timeline-event";
-
-      const date = document.createElement("div");
-      date.className = "event-date";
-      date.textContent = formatDisplayRange(event.timestamp, event.endTimestamp);
-
-      const card = document.createElement("div");
-      card.className = "timeline-card";
-
-      const gallery = makeEventGallery(event);
-      if (gallery) card.append(gallery);
-
-      const heading = document.createElement("h2");
-      heading.textContent = event.title || "Untitled event";
-      card.append(heading);
-
-      const meta = document.createElement("div");
-      meta.className = "small";
-      meta.textContent = formatEventMeta(event);
-      card.append(meta);
-
-      const fieldSummary = makeFieldSummary(event.fields || []);
-      if (fieldSummary) card.append(fieldSummary);
-
-      row.append(date, card);
-      timeline.append(row);
-    }
-  }
-
-  function renderPlaceholderPlayer() {
-    timeline.innerHTML = "";
-    const placeholder = document.createElement("div");
-    placeholder.className = "empty-state placeholder-player";
-
-    const title = document.createElement("strong");
-    title.textContent = playerData.label + " player placeholder";
-
-    const description = document.createElement("span");
-    description.textContent = playerData.description || "Player placeholder.";
-
-    const count = document.createElement("span");
-    count.textContent = events.length + " event" + (events.length === 1 ? "" : "s") + " loaded.";
-
-    placeholder.append(title, description, count);
-    timeline.append(placeholder);
-  }
-
-  function sortEvents(events) {
-    return [...events].sort((a, b) => {
-      const aTimestamp = timestampSortValue(a.timestamp);
-      const bTimestamp = timestampSortValue(b.timestamp);
-      const timestampCompare = aTimestamp.localeCompare(bTimestamp);
-      if (timestampCompare !== 0) return timestampCompare;
-      return String(a.title || "").localeCompare(String(b.title || ""));
-    });
-  }
-
-  function normalizeEventTypes(input) {
-    const normalized = EVENT_TYPES.map((eventType) => Object.assign({}, eventType));
-    const usedValues = new Set(normalized.map((eventType) => eventType.value));
-    if (!Array.isArray(input)) return normalized;
-
-    for (const item of input) {
-      if (!item || typeof item !== "object") continue;
-      const value = String(item.value || item.key || "").trim().toLowerCase();
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) || usedValues.has(value)) continue;
-      normalized.push({
-        value,
-        label: String(item.label || item.name || titleFromSlug(value)).trim(),
-        emoji: String(item.emoji || "🏷️").trim().slice(0, 16),
-        custom: Boolean(item.custom)
-      });
-      usedValues.add(value);
-    }
-
-    return normalized;
-  }
-
-  function getEventTypeDisplay(type) {
-    const safeType = String(type || "").trim().toLowerCase();
-    const eventType = eventTypes.find((item) => item.value === safeType)
-      || eventTypes.find((item) => item.value === DEFAULT_EVENT_TYPE)
-      || EVENT_TYPES[0];
-    return eventType.emoji ? eventType.emoji + " " + eventType.label : eventType.label;
-  }
-
-  function normalizeCollections(input) {
-    if (!Array.isArray(input)) return [];
-    return input
-      .filter((item) => item && typeof item === "object")
-      .map((item) => ({
-        id: String(item.id || "").trim(),
-        title: String(item.title || item.name || "Untitled collection").trim()
-      }))
-      .filter((item) => item.id);
-  }
-
-  function getEventCollections(event) {
-    const collectionIds = new Set(Array.isArray(event.collectionIds) ? event.collectionIds : []);
-    return collections.filter((collection) => collectionIds.has(collection.id));
-  }
-
-  function formatEventMeta(event) {
-    return [
-      getEventTypeDisplay(event.type),
-      ...getEventCollections(event).map((collection) => collection.title),
-      event.location || ""
-    ].filter(Boolean).join(" / ");
-  }
-
-  function titleFromSlug(value) {
-    return String(value || "")
-      .split("-")
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ") || "Event";
-  }
-
-  function timestampSortValue(timestamp) {
-    const safeTimestamp = timestamp || {};
-    return String(safeTimestamp.date || "") + "T" + String(safeTimestamp.time || "00:00") + " " + String(safeTimestamp.tz || "");
-  }
-
-  function formatDisplayDate(date) {
-    const parsed = new Date(date + "T00:00:00");
-    return Number.isNaN(parsed.getTime())
-      ? date
-      : parsed.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-      });
-  }
-
-  function formatDisplayTimestamp(timestamp) {
-    const safeTimestamp = timestamp || {};
-    const date = safeTimestamp.date || "";
-    if (!date) return "No date";
-    return formatDisplayDate(date) + " " + (safeTimestamp.time || "00:00") + " " + (safeTimestamp.tz || "");
-  }
-
-  function formatDisplayRange(timestamp, endTimestamp) {
-    if (!endTimestamp || !endTimestamp.date) return formatDisplayTimestamp(timestamp);
-    const start = { date: (timestamp && timestamp.date) || "", time: (timestamp && timestamp.time) || "00:00", tz: (timestamp && timestamp.tz) || "" };
-    if (!start.date) return formatDisplayTimestamp(timestamp);
-    const end = { date: endTimestamp.date, time: endTimestamp.time || "00:00", tz: endTimestamp.tz || start.tz };
-    if (end.date === start.date && end.time === start.time && end.tz === start.tz) return formatDisplayTimestamp(start);
-    const startText = formatDisplayDate(start.date) + " " + start.time;
-    const endText = end.date === start.date && end.tz === start.tz
-      ? end.time
-      : formatDisplayDate(end.date) + " " + end.time;
-    return end.tz === start.tz
-      ? startText + " \u2013 " + endText + " " + start.tz
-      : startText + " " + start.tz + " \u2013 " + endText + " " + end.tz;
-  }
-
-  function canRenderImageMedia(media) {
-    return media
-      && media.kind === "image"
-      && media.mimeType === "image/jpeg"
-      && String(media.dataUrl || "").startsWith("data:image/jpeg;base64,");
-  }
-
-  function makeEventGallery(event) {
-    const images = resolveEventImages(event).filter((image) => image.kind === "link" || canRenderImageMedia(image.media));
-    if (images.length === 0) return null;
-
-    const gallery = document.createElement("div");
-    const visibleImages = images.slice(0, 4);
-    gallery.className = "event-gallery image-count-" + Math.min(visibleImages.length, 4);
-
-    visibleImages.forEach((image, index) => {
-      const item = document.createElement("figure");
-      item.className = "gallery-item";
-
-      const img = document.createElement("img");
-      img.src = image.kind === "embedded" ? image.media.dataUrl : image.url;
-      img.alt = image.caption || "";
-
-      item.append(img, makeSourceIcon(image.kind));
-      if (image.caption) {
-        const caption = document.createElement("figcaption");
-        const captionText = document.createElement("span");
-        captionText.textContent = image.caption;
-        caption.append(captionText);
-        item.append(caption);
-      }
-
-      if (images.length > visibleImages.length && index === 3) {
-        const overflow = document.createElement("span");
-        overflow.className = "gallery-overflow";
-        overflow.textContent = "+" + (images.length - visibleImages.length);
-        item.append(overflow);
-      }
-
-      gallery.append(item);
-    });
-
-    return gallery;
-  }
-
-  function makeSourceIcon(kind) {
-    const icon = document.createElement("span");
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    const label = kind === "embedded" ? "Embedded image" : "Linked image";
-    icon.className = "source-icon";
-    icon.setAttribute("role", "img");
-    icon.setAttribute("aria-label", label);
-    icon.title = label;
-    svg.setAttribute("class", "icon");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
-
-    const paths = kind === "embedded"
-      ? [
-        "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z",
-        "M14 2v6h6"
-      ]
-      : [
-        "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
-        "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-      ];
-
-    for (const d of paths) {
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", d);
-      svg.append(path);
-    }
-
-    icon.append(svg);
-    return icon;
-  }
-
-  function resolveEventImages(event) {
-    return (event.images || []).map((image) => {
-      if (image && image.kind === "embedded" && mediaById.has(image.mediaId)) {
-        return Object.assign({}, image, { media: mediaById.get(image.mediaId) });
-      }
-      if (image && image.kind === "link" && isSafeHttpUrl(image.url)) return image;
-      return null;
-    }).filter(Boolean);
-  }
-
-  function makeFieldSummary(fields) {
-    const populatedFields = fields.filter((field) => field && field.value);
-    if (populatedFields.length === 0) return null;
-
-    const list = document.createElement("dl");
-    list.className = "field-summary";
-
-    for (const field of populatedFields) {
-      const row = document.createElement("div");
-      const term = document.createElement("dt");
-      const value = document.createElement("dd");
-      term.textContent = field.label || field.key || "Field";
-      value.textContent = field.value;
-      row.append(term, value);
-      list.append(row);
-    }
-
-    return list;
-  }
-
-  function isSafeHttpUrl(url) {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-      return false;
-    }
-  }
-})();
 `;
 }
 
