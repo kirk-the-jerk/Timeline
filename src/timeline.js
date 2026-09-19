@@ -112,7 +112,9 @@ export function normalizeTimelineWithDiagnostics(input) {
 
   const migratedInput = migrateTimelineInput(input, diagnostics);
   const inputEvents = getEventInputs(migratedInput, diagnostics);
-  const eventTypes = normalizeEventTypes(migratedInput.eventTypes, diagnostics, "$.eventTypes");
+  const usedEventTypes = new Set(inputEvents.map((event) => getRawEventType(event)));
+  const hiddenEventTypes = normalizeHiddenEventTypes(migratedInput.hiddenEventTypes, usedEventTypes, diagnostics, "$.hiddenEventTypes");
+  const eventTypes = normalizeEventTypes(migratedInput.eventTypes, diagnostics, "$.eventTypes", hiddenEventTypes);
   const collections = normalizeCollections(migratedInput.collections, diagnostics, "$.collections");
   const mediaById = new Map();
 
@@ -155,6 +157,7 @@ export function normalizeTimelineWithDiagnostics(input) {
     title: normalizeTimelineTitle(migratedInput.title, diagnostics),
     updatedAt: normalizeUpdatedAt(migratedInput.updatedAt, diagnostics),
     eventTypes,
+    ...(hiddenEventTypes.length > 0 ? { hiddenEventTypes } : {}),
     collections: pruneUnusedCollections(collections, events),
     media: [...usedMediaIds].map((id) => mediaById.get(id)).filter(Boolean),
     events: sortEvents(events)
@@ -233,7 +236,16 @@ export function getEventTitle(event) {
 }
 
 export function getEventTypes(timeline) {
-  return normalizeEventTypes(timeline?.eventTypes);
+  const hidden = normalizeHiddenEventTypes(timeline?.hiddenEventTypes);
+  return normalizeEventTypes(timeline?.eventTypes, [], "$.eventTypes", hidden);
+}
+
+// The built-in types missing from `eventTypes`, as a hiddenEventTypes value.
+export function getHiddenEventTypes(eventTypes) {
+  const present = new Set(eventTypes.map((eventType) => eventType.value));
+  return EVENT_TYPES
+    .map((eventType) => eventType.value)
+    .filter((value) => value !== DEFAULT_EVENT_TYPE && !present.has(value));
 }
 
 export function getCollections(timeline) {
@@ -726,18 +738,51 @@ function normalizeEventType(type, eventTypes = EVENT_TYPES, diagnostics = [], pa
     addDiagnostic(diagnostics, "warning", "invalid-event-type", `Event type ${safeType} was not a valid slug; defaulted to misc.`, path);
     return DEFAULT_EVENT_TYPE;
   }
-  if (!normalizeEventTypes(eventTypes).some((eventType) => eventType.value === safeType)) {
+  if (!eventTypes.some((eventType) => eventType.value === safeType)) {
     addDiagnostic(diagnostics, "warning", "unknown-event-type", `Unknown event type ${safeType}; defaulted to misc.`, path);
     return DEFAULT_EVENT_TYPE;
   }
   return safeType;
 }
 
-function normalizeEventTypes(eventTypes, diagnostics = [], path = "$.eventTypes") {
+function getRawEventType(event) {
+  const rawType = cleanText(event?.type).toLowerCase();
+  return EVENT_TYPE_ALIASES[rawType] || rawType;
+}
+
+// Built-in types are always present unless listed in hiddenEventTypes. Types
+// that events still use are never hidden, so no event is silently retyped.
+function normalizeHiddenEventTypes(hiddenEventTypes, usedTypes = new Set(), diagnostics = [], path = "$.hiddenEventTypes") {
+  if (hiddenEventTypes === undefined) return [];
+  if (!Array.isArray(hiddenEventTypes)) {
+    addDiagnostic(diagnostics, "warning", "invalid-hidden-event-types", "Ignored hidden event types because they were not an array.", path);
+    return [];
+  }
+
+  const hidden = [];
+  hiddenEventTypes.forEach((value, index) => {
+    const slug = cleanText(value).toLowerCase();
+    const safeValue = EVENT_TYPE_ALIASES[slug] || slug;
+    const isHideable = safeValue !== DEFAULT_EVENT_TYPE && EVENT_TYPES.some((type) => type.value === safeValue);
+    if (!isHideable) {
+      addDiagnostic(diagnostics, "warning", "invalid-hidden-event-type", `Ignored hidden event type ${slug || "(missing)"} because it is not a hideable built-in type.`, `${path}[${index}]`);
+      return;
+    }
+    if (usedTypes.has(safeValue)) {
+      addDiagnostic(diagnostics, "warning", "hidden-event-type-in-use", `Kept event type ${safeValue} visible because events still use it.`, `${path}[${index}]`);
+      return;
+    }
+    if (!hidden.includes(safeValue)) hidden.push(safeValue);
+  });
+  return hidden;
+}
+
+function normalizeEventTypes(eventTypes, diagnostics = [], path = "$.eventTypes", hiddenTypes = []) {
   const normalized = [];
   const usedValues = new Set();
 
   for (const eventType of EVENT_TYPES) {
+    if (hiddenTypes.includes(eventType.value)) continue;
     addEventType(normalized, usedValues, eventType);
   }
 
@@ -1093,6 +1138,7 @@ const TIMELINE_KEYS = new Set([
   "title",
   "updatedAt",
   "eventTypes",
+  "hiddenEventTypes",
   "collections",
   "events",
   "media"

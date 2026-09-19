@@ -119,6 +119,11 @@
                   <button type="button" id="add-custom-event-type">Add type</button>
                 </div>
               </div>
+              <div class="event-type-hide-actions">
+                <button type="button" id="hide-event-type">Hide selected type</button>
+                <button type="button" id="show-hidden-event-types" hidden>Show hidden types</button>
+                <span class="small" id="hide-event-type-note"></span>
+              </div>
             </details>
             <div class="field">
               <label for="event-title">Event title</label>
@@ -193,7 +198,7 @@
               <div class="drop-zone image-drop-zone" id="image-drop-zone" tabindex="0">
                 <div>
                   <strong>Drop or paste images</strong>
-                  <div class="small">Large images are resized and compressed.</div>
+                  <div class="small">Uploads are resized to 960px and compressed. For full quality, add an image link instead.</div>
                 </div>
               </div>
               <div class="image-preview" id="image-preview"></div>
@@ -315,6 +320,7 @@
               <button type="button" id="clear-export-events">Clear</button>
             </div>
           </details>
+          <div class="export-warning" id="export-link-warning" role="note" hidden></div>
           <div class="save-actions">
             <button class="primary" type="submit" id="save-submit">Save</button>
           </div>

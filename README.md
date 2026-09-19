@@ -59,10 +59,13 @@ Current exports use schema version `9`.
 - Version 7 renames the built-in event types `education` to `school` and `move` to `home`, in both `eventTypes[]` and `events[].type`.
 - Version 8 renames the built-in event type `job` to `work`, in both `eventTypes[]` and `events[].type`.
 - Version 9 adds an optional `events[].endTimestamp` (same `date` / `time` / `tz` shape as `timestamp`) for events that span a range, such as "lived in Vancouver 2015-2020". It is omitted for point-in-time events. An end that is earlier than the start, or has no date, is dropped with a warning on import.
+- Also under version 9, an optional top-level `hiddenEventTypes[]` lists built-in event type slugs (never `misc`) left out of `eventTypes[]`. Without it, every built-in type is present. A type that an event still uses is never hidden.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
-In IndexedDB, the active draft stores the timeline document and media records separately. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
+Uploaded images are previews, not archives: each is resized to at most 960px and re-encoded as JPEG (quality 0.72) with metadata removed, and the original is not kept. For full quality, link the image by URL instead of uploading it (see the note on linked images in the save dialog).
+
+In IndexedDB, the active draft stores the timeline document and media records separately. Media bytes are stored as Blobs there and are converted back to data URLs when the draft loads. In JSON and standalone HTML exports, the same media records are included in top-level `media[]` so the artifact remains self-contained.
 
 ## JSON Shape
 

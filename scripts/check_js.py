@@ -9,6 +9,7 @@ JS_FILES = [
     "src/timeline.js",
     "src/fileLoad.js",
     "src/db.js",
+    "src/mediaBlob.js",
     "src/players.js",
     "src/nav.js",
     "src/playerRenderers.js",
@@ -22,6 +23,7 @@ JS_FILES = [
     "src/exportRuntime.js",
     "scripts/check_schema.mjs",
     "scripts/check_export.mjs",
+    "scripts/check_media_blob.mjs",
     "scripts/check_timeline_layout.mjs",
 ]
 WINDOWS_NODE = Path("/mnt/c/Program Files/nodejs/node.exe")
@@ -44,7 +46,7 @@ def main():
             failures += 1
 
     if failures == 0:
-        for script in ("scripts/check_schema.mjs", "scripts/check_export.mjs", "scripts/check_timeline_layout.mjs"):
+        for script in ("scripts/check_schema.mjs", "scripts/check_export.mjs", "scripts/check_media_blob.mjs", "scripts/check_timeline_layout.mjs"):
             result = subprocess.run([str(node), node_readable_path(node, ROOT / script)], cwd=ROOT)
             if result.returncode != 0:
                 failures += 1

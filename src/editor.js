@@ -13,6 +13,7 @@ import {
   createImageMedia,
   DEFAULT_EVENT_TYPE,
   downloadTimeline,
+  EVENT_TYPES,
   FIELD_PRESETS,
   formatDisplayDate,
   getAvailableTimeZones,
@@ -24,6 +25,7 @@ import {
   getEventTypeEmoji,
   getEventTypeLabel,
   getEventTypes,
+  getHiddenEventTypes,
   isEndBeforeStart,
   makeFieldFromPreset,
   normalizeTimeline,
@@ -75,6 +77,10 @@ const eventTypeSummary = document.querySelector("#event-type-summary");
 const customEventTypeEmojiInput = document.querySelector("#custom-event-type-emoji");
 const customEventTypeLabelInput = document.querySelector("#custom-event-type-label");
 const addCustomEventTypeButton = document.querySelector("#add-custom-event-type");
+const hideEventTypeButton = document.querySelector("#hide-event-type");
+const showHiddenEventTypesButton = document.querySelector("#show-hidden-event-types");
+const hideEventTypeNote = document.querySelector("#hide-event-type-note");
+const exportLinkWarning = document.querySelector("#export-link-warning");
 const eventTitleInput = document.querySelector("#event-title");
 const dateInput = document.querySelector("#event-date");
 const endDateInput = document.querySelector("#event-end-date");
@@ -366,6 +372,16 @@ customEventTypeLabelInput.addEventListener("keydown", async (event) => {
   await addCustomEventTypeToTimeline();
 });
 
+hideEventTypeButton.addEventListener("click", async () => {
+  await hideSelectedEventType();
+});
+
+showHiddenEventTypesButton.addEventListener("click", async () => {
+  await showHiddenEventTypes();
+});
+
+typeInput.addEventListener("change", updateHideEventTypeControls);
+
 timeInput.addEventListener("input", renderOptionalSummaries);
 endTimeInput.addEventListener("input", renderOptionalSummaries);
 dateInput.addEventListener("input", syncEndDateMin);
@@ -546,6 +562,41 @@ async function addCustomEventTypeToTimeline() {
   populateEventTypes(eventType.value);
 }
 
+function canHideEventType(value) {
+  return value !== DEFAULT_EVENT_TYPE
+    && EVENT_TYPES.some((eventType) => eventType.value === value)
+    && !timeline.events.some((event) => event.type === value);
+}
+
+function updateHideEventTypeControls() {
+  const value = typeInput.value;
+  const isBuiltIn = EVENT_TYPES.some((eventType) => eventType.value === value);
+  hideEventTypeButton.disabled = !canHideEventType(value);
+  hideEventTypeNote.textContent = !isBuiltIn || value === DEFAULT_EVENT_TYPE
+    ? "Only built-in types other than Misc can be hidden."
+    : canHideEventType(value) ? "" : "Events still use this type.";
+  const hiddenCount = timeline.hiddenEventTypes?.length || 0;
+  showHiddenEventTypesButton.hidden = hiddenCount === 0;
+  showHiddenEventTypesButton.textContent = `Show hidden types (${hiddenCount})`;
+}
+
+async function hideSelectedEventType() {
+  const value = typeInput.value;
+  if (!canHideEventType(value)) return;
+  const label = getEventTypeLabel(value, timeline);
+  timeline.eventTypes = getEventTypes(timeline).filter((eventType) => eventType.value !== value);
+  timeline.hiddenEventTypes = [...(timeline.hiddenEventTypes || []), value];
+  await persist(`${label} type hidden.`);
+  populateEventTypes(DEFAULT_EVENT_TYPE);
+}
+
+async function showHiddenEventTypes() {
+  delete timeline.hiddenEventTypes;
+  timeline.eventTypes = getEventTypes(timeline);
+  await persist("Hidden event types restored.");
+  populateEventTypes();
+}
+
 async function saveTimelineAs(format) {
   const exportTimeline = getExportTimeline();
   if (!exportTimeline) return;
@@ -593,6 +644,49 @@ function getSelectedSaveFormat() {
 
 function updateSaveFormatControls() {
   htmlPlayerField.hidden = !isHtmlSaveFormat(getSelectedSaveFormat());
+  updateLinkedImageWarning();
+}
+
+// Events the current scope selection would export, without validating it.
+function getScopedExportEvents() {
+  const scope = getSelectedExportScope();
+  if (scope === "collection") {
+    const collectionIds = getSelectedExportCollections();
+    return timeline.events.filter((event) => event.collectionIds?.some((id) => collectionIds.has(id)));
+  }
+  if (scope === "event-types") {
+    const types = getSelectedExportEventTypes();
+    return timeline.events.filter((event) => types.has(event.type));
+  }
+  return timeline.events;
+}
+
+function updateLinkedImageWarning() {
+  const linkedHosts = new Set();
+  let linkedCount = 0;
+  if (isHtmlSaveFormat(getSelectedSaveFormat())) {
+    for (const event of getScopedExportEvents()) {
+      for (const image of event.images || []) {
+        if (image.kind !== "link") continue;
+        linkedCount += 1;
+        try {
+          linkedHosts.add(new URL(image.url).hostname);
+        } catch {
+          // Unparseable URLs are dropped by normalization; nothing to name.
+        }
+      }
+    }
+  }
+
+  exportLinkWarning.hidden = linkedCount === 0;
+  if (linkedCount === 0) {
+    exportLinkWarning.textContent = "";
+    return;
+  }
+  const hosts = [...linkedHosts].join(", ");
+  exportLinkWarning.textContent = `${linkedCount} linked image${linkedCount === 1 ? "" : "s"} (${hosts}) are not embedded. `
+    + "Whoever opens the saved file will load them from those sites, which can see the request. "
+    + "Re-add them as uploaded images to embed them.";
 }
 
 function updateExportControls() {
@@ -614,6 +708,7 @@ function updateExportControls() {
   exportCollectionsSummary.textContent = "All collections";
   saveDialogStatus.textContent = "";
   saveSubmitButton.disabled = false;
+  updateLinkedImageWarning();
 }
 
 function isHtmlSaveFormat(format) {
@@ -649,10 +744,12 @@ function getExportTimeline() {
         collectionIds: (event.collectionIds || []).filter((id) => selectedCollectionIds.has(id))
       }));
     const usedTypes = new Set(events.map((event) => event.type));
+    const eventTypes = getEventTypes(timeline).filter((eventType) => usedTypes.has(eventType.value));
     return {
       ...timeline,
       title: getExportTimelineTitleValue(),
-      eventTypes: getEventTypes(timeline).filter((eventType) => usedTypes.has(eventType.value)),
+      eventTypes,
+      hiddenEventTypes: getHiddenEventTypes(eventTypes),
       collections: getCollections(timeline).filter((collection) => selectedCollectionIds.has(collection.id)),
       events
     };
@@ -671,6 +768,7 @@ function getExportTimeline() {
     ...timeline,
     title: getExportTimelineTitleValue(),
     eventTypes,
+    hiddenEventTypes: getHiddenEventTypes(eventTypes),
     events
   };
 }
@@ -715,6 +813,7 @@ function updateExportEventsSummary(eventTypes = getExportableEventTypes()) {
   }
   saveDialogStatus.textContent = selectedCount === 0 ? "Select at least one event type to export." : "";
   saveSubmitButton.disabled = selectedCount === 0;
+  updateLinkedImageWarning();
 }
 
 function getSelectedExportEventTypes() {
@@ -741,6 +840,7 @@ function updateExportCollectionsSummary(collections = getExportableCollections()
     saveDialogStatus.textContent = "";
     saveSubmitButton.disabled = false;
   }
+  updateLinkedImageWarning();
 }
 
 function getSelectedExportCollections() {
@@ -866,6 +966,7 @@ function populateEventTypes(selectedValue = typeInput.value || DEFAULT_EVENT_TYP
     ? selectedValue
     : DEFAULT_EVENT_TYPE;
   eventTypeSummary.textContent = `${eventTypes.length} type${eventTypes.length === 1 ? "" : "s"}`;
+  updateHideEventTypeControls();
 }
 
 function populateTimeZones() {

@@ -21,6 +21,12 @@
   box-sizing: border-box;
 }
 
+/* Reserve the scrollbar's width on every page so the centred layout doesn't
+   shift sideways between pages that scroll and pages that don't. */
+html {
+  scrollbar-gutter: stable;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -47,6 +53,9 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  /* Matches the editor/player header (40px icon buttons in 4px padding and a
+     1px border) so the nav doesn't jump when switching to the product page. */
+  min-height: 50px;
   margin-bottom: 28px;
 }
 
@@ -131,16 +140,19 @@ body.dragging .player-panel {
   outline-offset: -2px;
 }
 
+/* !important so form-control rules such as input[type="file"] { width: 100% }
+   can't undo the hiding; an unhidden file input overflowed the page sideways. */
 .sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  border: 0;
+  border: 0 !important;
 }
 
 .brand {
@@ -438,6 +450,22 @@ select {
   grid-template-columns: minmax(64px, 84px) minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
+}
+
+.event-type-hide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 12px 0;
+}
+
+.export-warning {
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  border-radius: 4px;
+  background: var(--warning-soft);
+  font-size: 0.9rem;
 }
 
 .emoji-field input {
@@ -1192,6 +1220,7 @@ body.event-editor-open {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    min-height: 0;
   }
 
   .timeline-title-editor,

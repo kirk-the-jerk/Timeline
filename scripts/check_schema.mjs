@@ -8,6 +8,8 @@ import {
   createEvent,
   formatDisplayRange,
   formatDisplayTimestamp,
+  getEventTypes,
+  getHiddenEventTypes,
   normalizeTimelineWithDiagnostics
 } from "../src/timeline.js";
 
@@ -29,6 +31,7 @@ function main() {
   checkLegacyEventTypeAliases();
   checkLegacyJobEventTypeAlias();
   checkCurrentDraftStaleEventTypeAliases();
+  checkHiddenEventTypes();
   checkV8ToV9Migration();
   checkTimeRanges();
   console.log("OK schema fixtures");
@@ -308,6 +311,61 @@ function checkCurrentDraftStaleEventTypeAliases() {
   assert.ok(!timeline.eventTypes.some((eventType) => eventType.value === "job"));
   assert.equal(timeline.events.find((event) => event.title === "Moved apartments").type, "home");
   assert.equal(timeline.events.find((event) => event.title === "Started a new role").type, "work");
+}
+
+function checkHiddenEventTypes() {
+  const event = (id, type) => ({
+    id,
+    type,
+    title: id,
+    timestamp: { date: "2026-05-01", time: "09:00", tz: "UTC" }
+  });
+  const base = {
+    format: "local-timeline-poc",
+    version: TIMELINE_VERSION,
+    title: "Hidden types",
+    updatedAt: "2026-06-25T00:00:00.000Z"
+  };
+
+  // A hidden built-in stays hidden through normalization; misc can't be hidden.
+  const { timeline, diagnostics } = normalizeTimelineWithDiagnostics({
+    ...base,
+    hiddenEventTypes: ["health", "misc", "conference", "Health", "job"],
+    events: [event("e1", "travel"), event("e2", "work")]
+  });
+  const values = timeline.eventTypes.map((eventType) => eventType.value);
+  assert.ok(!values.includes("health"));
+  assert.ok(values.includes("misc"));
+  assert.ok(values.includes("travel"));
+  assert.deepEqual(timeline.hiddenEventTypes, ["health"]);
+  assert.deepEqual(getEventTypes(timeline).map((eventType) => eventType.value), values);
+  assertCodesInclude(diagnostics, ["invalid-hidden-event-type", "hidden-event-type-in-use"]);
+
+  // A type still used by an event is kept visible, and its event keeps its type.
+  const used = normalizeTimelineWithDiagnostics({
+    ...base,
+    hiddenEventTypes: ["travel"],
+    events: [event("e1", "travel")]
+  });
+  assert.ok(used.timeline.eventTypes.some((eventType) => eventType.value === "travel"));
+  assert.equal(used.timeline.events[0].type, "travel");
+  assert.equal(used.timeline.hiddenEventTypes, undefined);
+  assertCodesInclude(used.diagnostics, ["hidden-event-type-in-use"]);
+
+  // Files without the field still get every built-in.
+  const plain = normalizeTimelineWithDiagnostics({ ...base, events: [] });
+  assert.equal(plain.timeline.eventTypes.length, 9);
+  assert.equal(plain.timeline.hiddenEventTypes, undefined);
+
+  // The export filter round-trips: kept types stay, the rest stay hidden.
+  const kept = plain.timeline.eventTypes.filter((eventType) => ["misc", "travel"].includes(eventType.value));
+  const exported = normalizeTimelineWithDiagnostics({
+    ...base,
+    eventTypes: kept,
+    hiddenEventTypes: getHiddenEventTypes(kept),
+    events: [event("e1", "travel")]
+  }).timeline;
+  assert.deepEqual(exported.eventTypes.map((eventType) => eventType.value), ["misc", "travel"]);
 }
 
 function timelineWithEvents(version, events) {

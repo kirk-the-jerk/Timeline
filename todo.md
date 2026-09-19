@@ -115,8 +115,9 @@ is never retained anywhere. The UI does disclose this ("resized... with metadata
 the tradeoff is defensible — but a scrapbook built here is permanently lossy relative to the user's photo
 library. That's a preview, not an archive. Either the archival claim or the encoding needs to move.
 
-- [ ] Decide: soften the "portable forever" claim, or retain originals.
-- [ ] Storage design: store media as `Blob`s rather than base64 data URLs, and downscale only on export. Base64 inflates bytes ~33%, every media row is re-written to IndexedDB in full on every save ([src/db.js:56-61](src/db.js#L56-L61) puts every media row per `persist()` call), and `downloadTimeline` pretty-prints them with `JSON.stringify(..., null, 2)` ([src/timeline.js:172](src/timeline.js#L172)). IndexedDB stores `Blob`s natively. A 100-photo scrapbook will hit a wall here.
+- [x] Decided: keep the 960px / JPEG q0.72 cap. Uploads are previews; users who want full quality should link the image, not embed it. The editor hint and README now say so, and the save dialog already warns about linked images (P7). The "portable forever" claim is about the file, not the photo originals.
+- [x] IndexedDB now stores media as `Blob`s ([src/mediaBlob.js](src/mediaBlob.js), [src/db.js](src/db.js)), and `saveActiveTimeline` only writes rows that are new or changed instead of every row per save. DB version 3 converts old rows in place on upgrade. The timeline JSON, players and export still use `dataUrl`, so no schema change. Round-trip covered by `scripts/check_media_blob.mjs`; the IndexedDB code itself has no automated test and is unchecked in a browser.
+- [ ] Not done: the in-memory model still holds base64 strings, so a 100-photo draft costs memory on load (Blob to data URL for every image), and `downloadTimeline` still pretty-prints them with `JSON.stringify(..., null, 2)` ([src/timeline.js:172](src/timeline.js#L172)). Moving players to object URLs would fix the first but touches every player and the export. Do it only if a big draft actually feels slow.
 
 ## P6 — Product-shape decisions
 
@@ -133,7 +134,7 @@ Linked images (`kind: "link"`) are preserved verbatim into the exported HTML. Op
 from the remote host, carrying a request the recipient didn't ask for. A "local-first, no cloud" artifact
 that phones out on open deserves a deliberate decision.
 
-- [ ] Either inline linked images on export, or warn visibly in the save dialog.
+- [x] Warn visibly in the save dialog. For HTML exports, a note under the options counts the linked images the chosen scope would include and names their hosts. Not done: inlining them at export. That would mean fetching cross-origin images in the browser, which most hosts block without CORS, so it needs a proxy-free plan first.
 
 ## P8 — README drift
 
@@ -145,8 +146,8 @@ In a repo where the schema is the main deliverable, the schema doc is three vers
 
 ## P9 — Smaller items
 
-- [ ] `normalizeEventTypes` always re-injects all 9 built-ins ([src/timeline.js:671-677](src/timeline.js#L671-L677)), so the event-type filtering in `getExportTimeline` ([src/editor.js:637](src/editor.js#L637)) is silently undone by the `normalizeTimeline` call inside `downloadTimeline`. The filter works for events, not the type list.
-- [ ] Users can't hide a built-in event type they never use (same root cause).
+- [x] `normalizeEventTypes` always re-injected all 9 built-ins, so the event-type filtering in `getExportTimeline` was silently undone by `normalizeTimeline`. Fixed with an optional top-level `hiddenEventTypes[]` (built-in slugs left out of the list; additive under v9). The export filters set it, and files without it behave as before. A type events still use is never hidden.
+- [x] Users can't hide a built-in event type they never use. The event editor's "Custom event type" section now has **Hide selected type** (unused built-ins other than Misc) and **Show hidden types**.
 - [x] Remove the `zip` and `html-images` radio options ([editor.html:274](editor.html#L274), [editor.html:290](editor.html#L290)) rather than showing disabled scope that doesn't exist.
 - [x] Event editor isn't a real dialog — a `div` with `role="dialog" aria-modal="true"` ([editor.html:95](editor.html#L95)). Escape and backdrop-click are handled, but no focus trap, so Tab walks into the page behind. `<dialog>` is used correctly for save/load; this one is the outlier. Fixed by making the page behind it `inert` while it's open ([src/editor.js](src/editor.js) `setPageBehindEditorInert`) rather than converting it to `<dialog>`, which would mean re-doing the slide-in panel styling.
 - [x] ~~`getExportTimelineTitleValue` dead fallback~~ — **not dead, left as is.** `required` only rejects an empty value; a whitespace-only name passes it, and `.trim()` then yields `""`, so the fallback is what stops a blank title in the saved file.
