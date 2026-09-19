@@ -1045,11 +1045,6 @@ body.event-editor-open {
   min-width: 0;
 }
 
-.save-option.unavailable {
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-
 .export-events-section,
 .export-collections-section {
   background: var(--panel);

@@ -49,12 +49,15 @@ The exported `.timeline.html` file can be opened directly in a browser. It conta
 
 ## Schema Compatibility
 
-Current exports use schema version `5`.
+Current exports use schema version `8`.
 
 - Version 1-style events with `name` and `date` are migrated on import.
 - Legacy event image fields such as `image`, `imageId`, and `imageLink` are ignored on import.
 - Version 4 stores event image galleries in `events[].images[]`. Embedded image bytes live in top-level `media[]`; linked images store their URL directly in the gallery item.
 - Version 5 stores event type labels and emoji in top-level `eventTypes[]`. Event records keep the stable `type` slug.
+- Version 6 adds top-level `collections[]` (each with an `id`, `kind`, and `title`). Events reference collections by id in `events[].collectionIds[]`.
+- Version 7 renames the built-in event types `education` to `school` and `move` to `home`, in both `eventTypes[]` and `events[].type`.
+- Version 8 renames the built-in event type `job` to `work`, in both `eventTypes[]` and `events[].type`.
 - Newer same-format files are accepted when possible. Known fields are normalized, unknown fields are preserved, and schema diagnostics are shown in the editor load dialog plus the browser console.
 - Recoverable inconsistencies, such as missing defaults, malformed fields, duplicate event IDs, and missing media references, are logged as warnings or errors while still loading as much timeline data as possible.
 
@@ -80,6 +83,9 @@ In IndexedDB, the active draft stores the timeline document and media records se
     { "value": "work", "label": "Work", "emoji": "💼" },
     { "value": "conference", "label": "Conference", "emoji": "🎤", "custom": true }
   ],
+  "collections": [
+    { "id": "collection-uuid", "kind": "collection", "title": "Japan 2026" }
+  ],
   "media": [
     {
       "id": "image-uuid",
@@ -103,6 +109,7 @@ In IndexedDB, the active draft stores the timeline document and media records se
         "tz": "America/Vancouver"
       },
       "location": "Vancouver, BC",
+      "collectionIds": ["collection-uuid"],
       "images": [
         {
           "id": "gallery-item-uuid",

@@ -103,6 +103,7 @@ const customFields = document.querySelector("#custom-fields");
 const submitEventButton = document.querySelector("#submit-event");
 const cancelEditButton = document.querySelector("#cancel-edit");
 const floatingAddEventButton = document.querySelector("#floating-add-event");
+const appShell = document.querySelector(".app-shell");
 const eventEditorShell = document.querySelector("#event-editor-shell");
 const eventEditorPanel = document.querySelector(".event-editor-panel");
 const eventEditorBackdrop = document.querySelector("#event-editor-backdrop");
@@ -543,18 +544,6 @@ async function saveTimelineAs(format) {
     downloadStandaloneHtml(exportTimeline, player.value);
     saveDialog.close();
     setStatus(`${player.label} HTML export started.`);
-    return;
-  }
-
-  if (format === "zip") {
-    saveDialogStatus.textContent = "ZIP export is not implemented yet.";
-    setStatus("ZIP export is not implemented yet.", "warning");
-    return;
-  }
-
-  if (format === "html-images") {
-    saveDialogStatus.textContent = "HTML + images export is not implemented yet.";
-    setStatus("HTML + images export is not implemented yet.", "warning");
   }
 }
 
@@ -605,7 +594,7 @@ function updateExportControls() {
 }
 
 function isHtmlSaveFormat(format) {
-  return format === "html-single" || format === "html-images";
+  return format === "html-single";
 }
 
 function getSelectedExportScope() {
@@ -791,6 +780,7 @@ function openEventEditor({ focus = true } = {}) {
       : null;
   }
   eventEditorShell.hidden = false;
+  setPageBehindEditorInert(true);
   document.body.classList.add("event-editor-open");
   floatingAddEventButton.setAttribute("aria-expanded", "true");
   eventEditorPanel.scrollTop = 0;
@@ -803,12 +793,20 @@ function closeEventEditor({ reset = true, restoreFocus = true } = {}) {
     render();
   }
   eventEditorShell.hidden = true;
+  setPageBehindEditorInert(false);
   document.body.classList.remove("event-editor-open");
   floatingAddEventButton.setAttribute("aria-expanded", "false");
   if (restoreFocus && eventEditorReturnFocus && document.contains(eventEditorReturnFocus)) {
     eventEditorReturnFocus.focus();
   }
   eventEditorReturnFocus = null;
+}
+
+// Stands in for a focus trap: inert content can't be tabbed to or clicked, and
+// is hidden from assistive tech, so the editor behaves like a modal dialog.
+function setPageBehindEditorInert(inert) {
+  appShell.inert = inert;
+  floatingAddEventButton.inert = inert;
 }
 
 function isEventEditorOpen() {

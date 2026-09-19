@@ -1,8 +1,9 @@
 # Timeline POC — Evaluation and TODO
 
 Assessment date: 2026-08-05. Revised 2026-09-19 after a product/functionality pass
-(see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. P1 confirmations
-(clear draft, delete event, import) are done on `fix/p1-data-safety`; everything else is still open.
+(see [CRITIQUE.md](CRITIQUE.md)). Baseline commit: `a068828`. Done since: P1 confirmations
+(clear draft, delete event, import), the first two P4 bullets (placeholder players hidden), all of P8,
+and most of P9. Everything else is still open.
 `python scripts/check_js.py` passes.
 
 ## Framing: objectives vs. outcomes
@@ -131,14 +132,14 @@ that phones out on open deserves a deliberate decision.
 
 In a repo where the schema is the main deliverable, the schema doc is three versions stale.
 
-- [ ] [README.md:52](README.md#L52) says *"Current exports use schema version 5."* Code is at 8 ([src/timeline.js:2](src/timeline.js#L2)); the JSON sample 18 lines below already says `"version": 8`.
-- [ ] Schema Compatibility section documents v1–v5 and stops. Undocumented: v6 (collections), v7 (`education`→`school`, `move`→`home`), v8 (`job`→`work`).
-- [ ] JSON Shape sample omits `collections[]` and `events[].collectionIds[]` — a top-level field since v6.
+- [x] [README.md:52](README.md#L52) says *"Current exports use schema version 5."* Code is at 8 ([src/timeline.js:2](src/timeline.js#L2)); the JSON sample 18 lines below already says `"version": 8`.
+- [x] Schema Compatibility section documents v1–v5 and stops. Undocumented: v6 (collections), v7 (`education`→`school`, `move`→`home`), v8 (`job`→`work`).
+- [x] JSON Shape sample omits `collections[]` and `events[].collectionIds[]` — a top-level field since v6.
 
 ## P9 — Smaller items
 
 - [ ] `normalizeEventTypes` always re-injects all 9 built-ins ([src/timeline.js:671-677](src/timeline.js#L671-L677)), so the event-type filtering in `getExportTimeline` ([src/editor.js:637](src/editor.js#L637)) is silently undone by the `normalizeTimeline` call inside `downloadTimeline`. The filter works for events, not the type list.
 - [ ] Users can't hide a built-in event type they never use (same root cause).
-- [ ] Remove the `zip` and `html-images` radio options ([editor.html:274](editor.html#L274), [editor.html:290](editor.html#L290)) rather than showing disabled scope that doesn't exist.
-- [ ] Event editor isn't a real dialog — a `div` with `role="dialog" aria-modal="true"` ([editor.html:95](editor.html#L95)). Escape and backdrop-click are handled, but no focus trap, so Tab walks into the page behind. `<dialog>` is used correctly for save/load; this one is the outlier.
-- [ ] `getExportTimelineTitleValue` falls back to `"Untitled timeline"` but the input is `required` — dead fallback.
+- [x] Remove the `zip` and `html-images` radio options ([editor.html:274](editor.html#L274), [editor.html:290](editor.html#L290)) rather than showing disabled scope that doesn't exist.
+- [x] Event editor isn't a real dialog — a `div` with `role="dialog" aria-modal="true"` ([editor.html:95](editor.html#L95)). Escape and backdrop-click are handled, but no focus trap, so Tab walks into the page behind. `<dialog>` is used correctly for save/load; this one is the outlier. Fixed by making the page behind it `inert` while it's open ([src/editor.js](src/editor.js) `setPageBehindEditorInert`) rather than converting it to `<dialog>`, which would mean re-doing the slide-in panel styling.
+- [x] ~~`getExportTimelineTitleValue` dead fallback~~ — **not dead, left as is.** `required` only rejects an empty value; a whitespace-only name passes it, and `.trim()` then yields `""`, so the fallback is what stops a blank title in the saved file.
