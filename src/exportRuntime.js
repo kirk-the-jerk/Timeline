@@ -15,6 +15,9 @@ function startStandaloneTimeline() {
     const player = getPlayerType(JSON.parse(document.getElementById("player-data").textContent).value);
     const events = sortEvents(timeline.events);
 
+    // The page already carries this title from export time; setting it here keeps
+    // the tab in step with what the page shows, whichever way the file was made.
+    document.title = timeline.title;
     titleEl.textContent = timeline.title;
     summaryEl.textContent = `${player.label} player / ${events.length} event${events.length === 1 ? "" : "s"}`;
     renderPlayer({ container: timelineEl, timeline, events, player });
