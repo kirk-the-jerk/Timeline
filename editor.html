@@ -90,6 +90,10 @@
               <h2>Current events</h2>
               <p>Changes are saved temporarily in your browser. Use SAVE button above to save permanently!</p>
             </div>
+            <div class="event-search">
+              <label class="sr-only" for="event-search">Search events</label>
+              <input id="event-search" type="search" placeholder="Search events…" autocomplete="off">
+            </div>
           </div>
           <div class="event-list" id="event-list"></div>
         </section>
@@ -282,6 +286,12 @@
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 5v14"></path>
         <path d="M5 12h14"></path>
+      </svg>
+    </button>
+
+    <button class="floating-add-button floating-top-button primary" type="button" id="scroll-to-top" aria-label="Scroll to top" title="Back to top" hidden>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m18 15-6-6-6 6"></path>
       </svg>
     </button>
 

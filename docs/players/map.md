@@ -283,7 +283,10 @@ Two flyouts over the map: **left** for choosing and settings, **right** for the 
 ### 6.2 Left panel
 
 - **Scope list.** "All events" (with its count), then each collection that has at least one located event
-  (with its count of located events), in `timeline.collections` order. Collections with none are left out.
+  (with its count of located events). Collections with none are left out. A small button in the panel header, left of the pin button, toggles
+  the order: a clock sorts collections by their earliest located event (the default, ties in `timeline.collections`
+  order), an "A" sorts them by name (A-Z). "All events" always stays first. The button is hidden when there are no
+  collections. The choice lasts only while the map is open.
 - **Event list** for the current scope: chronological, date and title, with a marker for the selected one.
   Clicking one selects it and flies to it. An event in several collections appears in each.
 - **Settings:** tile source, colour, lines (off, per collection, all in date order), arrows, numbers, open details on select.
@@ -317,8 +320,10 @@ Opening the stage starts in All events, fitted to all located events.
 
 - **Previous / Next** buttons at the bottom of the map, and the ← and → keys. They walk the scope's events in
   order, one event at a time, including several at a shared dot.
-- Stepping selects the event and **flies** the map to it. It keeps the current zoom; Leaflet's `flyTo` zooms out and
-  back in on its own when the target is far away. With `prefers-reduced-motion` the map jumps.
+- Stepping selects the event and **flies** the map to it. The first step after the map was fitted to a scope goes
+  one zoom level deeper than that fit (capped at the tile source's max zoom); later steps keep the current zoom,
+  so the viewer's own zooming is respected. Choosing a scope fits again, so the next step zooms in once more.
+  Leaflet's `flyTo` zooms out and back in on its own when the target is far away. With `prefers-reduced-motion` the map jumps.
 - At the ends, Next on the last event does nothing, or wraps to the first when Loop is on (section 11).
 - Clicking a dot or a list row selects and flies too, so the transport and the list stay in step.
 

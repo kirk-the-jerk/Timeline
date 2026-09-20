@@ -57,6 +57,12 @@ export function renderMapPlayer({ container, timeline, events }) {
   let destroyed = false;
 
   let scope = scopes[0];
+  // The zoom the scope was last fitted at, and whether stepping has already
+  // zoomed in one level from it.
+  let fitZoom = null;
+  let steppedIn = false;
+  // How the collections are listed: by earliest event, or by name (A-Z).
+  let scopeSort = "time";
   let selected = null;
   let selectedDot = null;
   let dots = [];
@@ -105,6 +111,7 @@ export function renderMapPlayer({ container, timeline, events }) {
       panels: { left: el.querySelector(".mp-left"), right: el.querySelector(".mp-right") },
       tabs: { left: el.querySelector(".mp-tab-left"), right: el.querySelector(".mp-tab-right") },
       scopesEl: el.querySelector(".mp-scopes"),
+      sortEl: el.querySelector('[data-action="sort-scopes"]'),
       listTitleEl: el.querySelector(".mp-list-title"),
       listEl: el.querySelector(".mp-list"),
       detailsEl: el.querySelector(".mp-details"),
@@ -407,7 +414,9 @@ export function renderMapPlayer({ container, timeline, events }) {
     const target = fitTarget(scope.events.map((event) => event.geo));
     if (!target) return;
     const animated = animate && !reducedMotion;
+    steppedIn = false;
     if (target.kind === "point") {
+      fitZoom = target.zoom;
       if (animated) map.flyTo([target.lat, target.lng], target.zoom, { duration: 1 });
       else map.setView([target.lat, target.lng], target.zoom, { animate: false });
       return;
@@ -418,17 +427,22 @@ export function renderMapPlayer({ container, timeline, events }) {
       paddingBottomRight: MAP_FIT_PADDING_BOTTOM_RIGHT,
       maxZoom: FIT_MAX_ZOOM
     };
+    const padding = globalThis.L.point(
+      MAP_FIT_PADDING_TOP_LEFT[0] + MAP_FIT_PADDING_BOTTOM_RIGHT[0],
+      MAP_FIT_PADDING_TOP_LEFT[1] + MAP_FIT_PADDING_BOTTOM_RIGHT[1]
+    );
+    fitZoom = Math.min(map.getBoundsZoom(bounds, false, padding), FIT_MAX_ZOOM);
     if (animated) map.flyToBounds(bounds, { ...options, duration: 1 });
     else map.fitBounds(bounds, { ...options, animate: false });
   }
 
   // flyTo keeps the current zoom, and zooms out and back in on its own when the
   // target is far away.
-  function flyToEvent(event) {
+  function flyToEvent(event, zoom = map?.getZoom()) {
     if (!map) return;
     const target = [event.geo.lat, event.geo.lng];
-    if (reducedMotion) map.setView(target, map.getZoom(), { animate: false });
-    else map.flyTo(target, map.getZoom(), { duration: 1 });
+    if (reducedMotion) map.setView(target, zoom, { animate: false });
+    else map.flyTo(target, zoom, { duration: 1 });
   }
 
   // ---- scope and selection ------------------------------------------------
@@ -447,7 +461,7 @@ export function renderMapPlayer({ container, timeline, events }) {
     fitScope(true);
   }
 
-  function selectEvent(event, { fly = true } = {}) {
+  function selectEvent(event, { fly = true, zoom } = {}) {
     if (!stage || !event) return;
     const previousDot = selectedDot;
     selected = event;
@@ -459,12 +473,18 @@ export function renderMapPlayer({ container, timeline, events }) {
     syncTransport();
     stage.announceEl.textContent = getEventTitle(event);
     if (settings.openDetails) openPanel("right");
-    if (fly) flyToEvent(event);
+    if (fly) flyToEvent(event, zoom);
   }
 
   function step(direction) {
     const next = stepIndex(selected ? scope.events.indexOf(selected) : -1, scope.events.length, direction, false);
-    if (next !== null) selectEvent(scope.events[next]);
+    if (next === null) return;
+    // The first step after a fit goes one level deeper than the fit; later
+    // steps keep whatever zoom the viewer has.
+    let zoom;
+    if (!steppedIn && fitZoom !== null) zoom = Math.min(fitZoom + 1, map.getMaxZoom());
+    steppedIn = true;
+    selectEvent(scope.events[next], { zoom });
   }
 
   // ---- panels -------------------------------------------------------------
@@ -530,8 +550,32 @@ export function renderMapPlayer({ container, timeline, events }) {
 
   // ---- left panel ---------------------------------------------------------
 
+  // All events stays first. Scope events are chronological, so events[0] is the
+  // earliest one in a collection.
+  function sortedScopes() {
+    const [all, ...collections] = scopes;
+    if (scopeSort === "name") {
+      collections.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true }));
+    } else {
+      const start = (scope) => located.indexOf(scope.events[0]);
+      collections.sort((a, b) => start(a) - start(b));
+    }
+    return [all, ...collections];
+  }
+
+  function toggleScopeSort() {
+    scopeSort = scopeSort === "time" ? "name" : "time";
+    paintScopes();
+  }
+
   function paintScopes() {
-    stage.scopesEl.innerHTML = scopes.map((item) => `
+    const byName = scopeSort === "name";
+    stage.sortEl.hidden = scopes.length < 2;
+    stage.sortEl.innerHTML = byName ? "A" : renderMapIcon("clock");
+    const label = byName ? "Collections sorted by name. Sort by time instead." : "Collections sorted by time. Sort by name instead.";
+    stage.sortEl.setAttribute("aria-label", label);
+    stage.sortEl.title = label;
+    stage.scopesEl.innerHTML = sortedScopes().map((item) => `
       <button class="mp-scope" type="button" data-scope="${item.id === null ? "" : escapeHtml(item.id)}" aria-pressed="${item === scope}">
         <span>${escapeHtml(item.title)}</span><span class="mp-scope-count">${item.events.length}</span>
       </button>
@@ -710,6 +754,7 @@ export function renderMapPlayer({ container, timeline, events }) {
     else if (action === "pin") togglePin(side);
     else if (action === "fullscreen") toggleFullscreen();
     else if (action === "exit") closeStage();
+    else if (action === "sort-scopes") toggleScopeSort();
     else if (action === "lightbox-close") closeLightbox();
     else if (action === "lightbox-prev") stepLightbox(-1);
     else if (action === "lightbox-next") stepLightbox(1);
@@ -852,6 +897,7 @@ function renderMapStageMarkup(scopes) {
         <header class="mp-panel-head">
           <h2>Events</h2>
           <span class="mp-head-actions">
+            <button class="mp-icon-btn mp-sort-btn" type="button" data-action="sort-scopes" hidden></button>
             <button class="mp-icon-btn" type="button" data-action="pin" aria-pressed="false" aria-label="Pin panel" title="Pin panel">${renderMapIcon("pin")}</button>
             <button class="mp-icon-btn" type="button" data-action="close-panel" aria-label="Close panel (L)" title="Close panel (L)">${renderMapIcon("close")}</button>
           </span>
@@ -929,6 +975,7 @@ const MAP_ICONS = {
   close: '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>',
   fullscreen: '<path d="M4 9V4h5"></path><path d="M20 9V4h-5"></path><path d="M4 15v5h5"></path><path d="M20 15v5h-5"></path>',
   list: '<path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path>',
+  clock: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
   info: '<circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>',
   back: '<path d="m15 18-6-6 6-6"></path>',
   forward: '<path d="m9 18 6-6-6-6"></path>'

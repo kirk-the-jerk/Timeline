@@ -138,6 +138,7 @@ const customFields = document.querySelector("#custom-fields");
 const submitEventButton = document.querySelector("#submit-event");
 const cancelEditButton = document.querySelector("#cancel-edit");
 const floatingAddEventButton = document.querySelector("#floating-add-event");
+const scrollToTopButton = document.querySelector("#scroll-to-top");
 const appShell = document.querySelector(".app-shell");
 const eventEditorShell = document.querySelector("#event-editor-shell");
 const eventEditorPanel = document.querySelector(".event-editor-panel");
@@ -156,6 +157,7 @@ const clearFilterCollectionsButton = document.querySelector("#clear-filter-colle
 const selectAllFilterTypesButton = document.querySelector("#select-all-filter-types");
 const clearFilterTypesButton = document.querySelector("#clear-filter-types");
 const resetFiltersButton = document.querySelector("#reset-filters");
+const eventSearchInput = document.querySelector("#event-search");
 const toastRegion = document.querySelector("#toast-region");
 
 let timeline = createEmptyTimeline();
@@ -172,6 +174,7 @@ let eventEditorReturnFocus = null;
 const NO_COLLECTION = "";
 let hiddenFilterTypes = new Set();
 let hiddenFilterCollections = new Set();
+let searchTerms = [];
 
 init();
 
@@ -345,6 +348,11 @@ saveDialog.addEventListener("click", (event) => {
   if (event.target === saveDialog) saveDialog.close();
 });
 
+eventSearchInput.addEventListener("input", () => {
+  searchTerms = eventSearchInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+  render();
+});
+
 openFilterDialogButton.addEventListener("click", () => {
   renderFilterControls();
   showDialog(filterDialog);
@@ -454,6 +462,19 @@ clearTimelineButton.addEventListener("click", async () => {
     return;
   }
   await clearTimelineDraft();
+});
+
+// Shown only once the page has been scrolled down a little.
+function syncScrollToTopButton() {
+  scrollToTopButton.hidden = window.scrollY < 300;
+}
+
+window.addEventListener("scroll", syncScrollToTopButton, { passive: true });
+syncScrollToTopButton();
+
+scrollToTopButton.addEventListener("click", () => {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
 });
 
 floatingAddEventButton.addEventListener("click", () => {
@@ -1068,6 +1089,7 @@ function closeEventEditor({ reset = true, restoreFocus = true } = {}) {
 function setPageBehindEditorInert(inert) {
   appShell.inert = inert;
   floatingAddEventButton.inert = inert;
+  scrollToTopButton.inert = inert;
 }
 
 function isEventEditorOpen() {
@@ -1186,6 +1208,21 @@ function isEventFiltered(event) {
   return ids.every((id) => hiddenFilterCollections.has(id));
 }
 
+// Every search word must appear somewhere in the event's searchable text.
+function matchesSearch(event) {
+  if (searchTerms.length === 0) return true;
+  const text = [
+    getEventTitle(event),
+    event.location,
+    getEventTypeLabel(event.type, timeline),
+    formatEditorEventTimestamp(event.timestamp, event.endTimestamp),
+    event.timestamp?.date,
+    ...getEventCollections(timeline, event).map((collection) => collection.title),
+    ...(event.fields || []).flatMap((field) => [field.label, field.value])
+  ].filter(Boolean).join(" ").toLowerCase();
+  return searchTerms.every((term) => text.includes(term));
+}
+
 function isFilterActive() {
   return hiddenFilterTypes.size > 0 || hiddenFilterCollections.size > 0;
 }
@@ -1257,9 +1294,10 @@ function render() {
     return;
   }
 
-  const visibleEvents = timeline.events.filter((event) => !isEventFiltered(event));
+  const visibleEvents = timeline.events.filter((event) => !isEventFiltered(event) && matchesSearch(event));
   if (visibleEvents.length === 0) {
-    eventList.innerHTML = `<div class="empty-state">No events match the current filter.</div>`;
+    const reason = searchTerms.length > 0 ? "search" : "filter";
+    eventList.innerHTML = `<div class="empty-state">No events match the current ${reason}.</div>`;
     return;
   }
 

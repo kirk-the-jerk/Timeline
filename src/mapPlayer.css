@@ -330,6 +330,17 @@ html.mp-lock {
   letter-spacing: 0.05em;
 }
 
+.mp-sort-btn {
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mp-sort-btn[hidden] {
+  display: none;
+}
+
 .mp-scopes {
   display: grid;
   gap: 4px;

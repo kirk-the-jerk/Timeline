@@ -446,6 +446,14 @@ button:disabled {
   margin: 0 0 10px;
 }
 
+.event-search {
+  margin: 0 0 12px;
+}
+
+.event-search input {
+  width: 100%;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -458,6 +466,7 @@ button:disabled {
 }
 
 input[type="text"],
+input[type="search"],
 input[type="date"],
 input[type="time"],
 input[type="url"],
@@ -738,6 +747,15 @@ input[aria-invalid="true"] {
   padding: 0;
   border-radius: 50%;
   box-shadow: 0 14px 32px rgba(34, 34, 34, 0.22);
+}
+
+.floating-top-button {
+  top: max(18px, env(safe-area-inset-top));
+  bottom: auto;
+}
+
+.floating-top-button[hidden] {
+  display: none;
 }
 
 body.event-editor-open {
@@ -1386,6 +1404,11 @@ body.event-editor-open {
   .floating-add-button {
     right: max(14px, env(safe-area-inset-right));
     bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .floating-top-button {
+    top: max(14px, env(safe-area-inset-top));
+    bottom: auto;
   }
 
   .product-visual {
