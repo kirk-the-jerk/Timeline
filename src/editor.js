@@ -5,6 +5,7 @@ import { createCoordinatesField } from "./coordinatesField.js";
 import { createGeocoder, createLookupPermission } from "./geocode.js";
 import { createLookupMissingDialog } from "./lookupMissingDialog.js";
 import { createMapPicker } from "./mapPicker.js";
+import { eventsMissingCoordinates } from "./geocodeBatch.js";
 import { getTileHosts } from "./mapTiles.js";
 import { initNav } from "./nav.js";
 import { getPlayerType, PLAYER_TYPES } from "./players.js";
@@ -143,6 +144,18 @@ const eventEditorPanel = document.querySelector(".event-editor-panel");
 const eventEditorBackdrop = document.querySelector("#event-editor-backdrop");
 const closeEventEditorButton = document.querySelector("#close-event-editor");
 const eventList = document.querySelector("#event-list");
+const openFilterDialogButton = document.querySelector("#open-filter-dialog");
+const filterDialog = document.querySelector("#filter-dialog");
+const closeFilterDialogButton = document.querySelector("#close-filter-dialog");
+const filterCollections = document.querySelector("#filter-collections");
+const filterCollectionsSummary = document.querySelector("#filter-collections-summary");
+const filterTypes = document.querySelector("#filter-types");
+const filterTypesSummary = document.querySelector("#filter-types-summary");
+const selectAllFilterCollectionsButton = document.querySelector("#select-all-filter-collections");
+const clearFilterCollectionsButton = document.querySelector("#clear-filter-collections");
+const selectAllFilterTypesButton = document.querySelector("#select-all-filter-types");
+const clearFilterTypesButton = document.querySelector("#clear-filter-types");
+const resetFiltersButton = document.querySelector("#reset-filters");
 const toastRegion = document.querySelector("#toast-region");
 
 let timeline = createEmptyTimeline();
@@ -154,6 +167,11 @@ let isEditingTitle = false;
 let exportEventTypeSelection = new Set();
 let exportCollectionSelection = new Set();
 let eventEditorReturnFocus = null;
+// Display-only filters. They hold what is switched off, so new types and
+// collections show up by default. NO_COLLECTION stands for events in none.
+const NO_COLLECTION = "";
+let hiddenFilterTypes = new Set();
+let hiddenFilterCollections = new Set();
 
 init();
 
@@ -174,6 +192,7 @@ createTimelineLoadController({
       throw new LoadCancelledError("Open cancelled. Your current draft was kept.");
     }
     timeline = timelineDocument;
+    resetFilters();
     lastTimeZone = getLastEventTimeZone(timeline) || lastTimeZone;
     setTitleEditing(false, { focus: false });
     resetEventForm();
@@ -324,6 +343,54 @@ closeSaveDialogButton.addEventListener("click", () => {
 
 saveDialog.addEventListener("click", (event) => {
   if (event.target === saveDialog) saveDialog.close();
+});
+
+openFilterDialogButton.addEventListener("click", () => {
+  renderFilterControls();
+  showDialog(filterDialog);
+});
+
+closeFilterDialogButton.addEventListener("click", () => filterDialog.close());
+
+filterDialog.addEventListener("click", (event) => {
+  if (event.target === filterDialog) filterDialog.close();
+});
+
+filterTypes.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-filter-type]");
+  if (!checkbox) return;
+  setFilterHidden(hiddenFilterTypes, checkbox.value, !checkbox.checked);
+});
+
+filterCollections.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-filter-collection]");
+  if (!checkbox) return;
+  setFilterHidden(hiddenFilterCollections, checkbox.value, !checkbox.checked);
+});
+
+selectAllFilterTypesButton.addEventListener("click", () => {
+  hiddenFilterTypes = new Set();
+  applyFilters();
+});
+
+clearFilterTypesButton.addEventListener("click", () => {
+  hiddenFilterTypes = new Set(getFilterTypeOptions().map((option) => option.value));
+  applyFilters();
+});
+
+selectAllFilterCollectionsButton.addEventListener("click", () => {
+  hiddenFilterCollections = new Set();
+  applyFilters();
+});
+
+clearFilterCollectionsButton.addEventListener("click", () => {
+  hiddenFilterCollections = new Set(getFilterCollectionOptions().map((option) => option.value));
+  applyFilters();
+});
+
+resetFiltersButton.addEventListener("click", () => {
+  resetFilters();
+  renderFilterControls();
 });
 
 saveForm.addEventListener("change", () => {
@@ -585,6 +652,7 @@ function describeDraftContent() {
 
 async function clearTimelineDraft() {
   timeline = createEmptyTimeline();
+  resetFilters();
   await clearActiveTimeline();
   lastTimeZone = getBrowserTimeZone();
   setTitleEditing(false);
@@ -1090,6 +1158,94 @@ function resolveCollectionIds(value) {
   return ids;
 }
 
+function getFilterTypeOptions() {
+  const counts = getEventTypeCounts();
+  return getEventTypes(timeline).map((eventType) => ({
+    value: eventType.value,
+    label: eventType.label,
+    emoji: eventType.emoji || "",
+    count: counts.get(eventType.value) || 0
+  }));
+}
+
+function getFilterCollectionOptions() {
+  const options = getCollections(timeline)
+    .map((collection) => ({ value: collection.id, label: collection.title, count: getCollectionEventCount(collection.id) }))
+    .filter((option) => option.count > 0);
+  const uncollected = timeline.events.filter((event) => !event.collectionIds?.length).length;
+  if (uncollected > 0 && options.length > 0) {
+    options.push({ value: NO_COLLECTION, label: "No collection", count: uncollected });
+  }
+  return options;
+}
+
+function isEventFiltered(event) {
+  if (hiddenFilterTypes.has(event.type)) return true;
+  if (hiddenFilterCollections.size === 0) return false;
+  const ids = event.collectionIds?.length ? event.collectionIds : [NO_COLLECTION];
+  return ids.every((id) => hiddenFilterCollections.has(id));
+}
+
+function isFilterActive() {
+  return hiddenFilterTypes.size > 0 || hiddenFilterCollections.size > 0;
+}
+
+function setFilterHidden(hiddenSet, value, hidden) {
+  if (hidden) {
+    hiddenSet.add(value);
+  } else {
+    hiddenSet.delete(value);
+  }
+  applyFilters();
+}
+
+function resetFilters() {
+  hiddenFilterTypes = new Set();
+  hiddenFilterCollections = new Set();
+  applyFilters();
+}
+
+function applyFilters() {
+  openFilterDialogButton.classList.toggle("filter-active", isFilterActive());
+  openFilterDialogButton.title = isFilterActive() ? "Filter (active)" : "Filter";
+  if (filterDialog.open) renderFilterControls();
+  render();
+}
+
+function renderFilterControls() {
+  const types = getFilterTypeOptions();
+  filterTypes.innerHTML = types.map((option) => `
+    <label class="export-event-type">
+      <input type="checkbox" value="${escapeHtml(option.value)}" data-filter-type ${hiddenFilterTypes.has(option.value) ? "" : "checked"}>
+      <span class="event-type-swatch" aria-hidden="true">${escapeHtml(option.emoji)}</span>
+      <span>${escapeHtml(option.label)}</span>
+      <span class="small">${option.count} event${option.count === 1 ? "" : "s"}</span>
+    </label>
+  `).join("");
+  filterTypesSummary.textContent = summarizeFilter(types, hiddenFilterTypes, "event types");
+
+  const collections = getFilterCollectionOptions();
+  filterCollections.innerHTML = collections.length === 0
+    ? `<div class="small">No collections yet.</div>`
+    : collections.map((option) => `
+      <label class="export-collection">
+        <input type="checkbox" value="${escapeHtml(option.value)}" data-filter-collection ${hiddenFilterCollections.has(option.value) ? "" : "checked"}>
+        <span>${escapeHtml(option.label)}</span>
+        <span class="small">${option.count} event${option.count === 1 ? "" : "s"}</span>
+      </label>
+    `).join("");
+  filterCollectionsSummary.textContent = collections.length === 0
+    ? "No collections"
+    : summarizeFilter(collections, hiddenFilterCollections, "collections");
+}
+
+function summarizeFilter(options, hidden, noun) {
+  const shown = options.filter((option) => !hidden.has(option.value)).length;
+  if (shown === options.length) return `All ${noun}`;
+  if (shown === 0) return `No ${noun} selected`;
+  return `${shown} of ${options.length} ${noun}`;
+}
+
 function render() {
   renderTimelineTitle();
   populateEventTypes();
@@ -1101,7 +1257,13 @@ function render() {
     return;
   }
 
-  for (const event of sortEvents(timeline.events)) {
+  const visibleEvents = timeline.events.filter((event) => !isEventFiltered(event));
+  if (visibleEvents.length === 0) {
+    eventList.innerHTML = `<div class="empty-state">No events match the current filter.</div>`;
+    return;
+  }
+
+  for (const event of sortEvents(visibleEvents)) {
     const row = document.createElement("article");
     row.className = event.id === editingEventId ? "event-item editing" : "event-item";
     const eventTypeLabel = getEventTypeLabel(event.type, timeline);
@@ -1109,7 +1271,7 @@ function render() {
     row.innerHTML = `
       <div class="event-type-emoji" role="img" aria-label="${escapeHtml(eventTypeTooltip)}" title="${escapeHtml(eventTypeTooltip)}">${escapeHtml(getEventTypeEmoji(event.type, timeline))}</div>
       <div class="event-summary">
-        <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp, event.endTimestamp))}</div>
+        <div class="event-date">${escapeHtml(formatEditorEventTimestamp(event.timestamp, event.endTimestamp))}${renderMissingCoordinatesWarning(event)}</div>
         <div class="event-name">${escapeHtml(getEventTitle(event))}</div>
         ${renderEventCollections(event)}
       </div>
@@ -1134,6 +1296,12 @@ function render() {
     `;
     eventList.append(row);
   }
+}
+
+function renderMissingCoordinatesWarning(event) {
+  if (eventsMissingCoordinates([event]).length === 0) return "";
+  const text = "Has a location but no coordinates yet. Use the globe button to look them up.";
+  return ` <span class="event-warning" role="img" aria-label="${text}" title="${text}">⚠</span>`;
 }
 
 function renderEventCollections(event) {

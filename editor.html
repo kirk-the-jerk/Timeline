@@ -45,7 +45,12 @@
                   <path d="M14 11v5"></path>
                 </svg>
               </button>
-              <button class="icon-button info header-action-gap" type="button" id="lookup-missing-coordinates" aria-label="Fix missing coordinates" title="Fix missing coordinates">
+              <button class="icon-button header-action-gap" type="button" id="open-filter-dialog" aria-label="Filter events" title="Filter">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M22 3H2l8 9.46V19l4 2v-8.54Z"></path>
+                </svg>
+              </button>
+              <button class="icon-button info" type="button" id="lookup-missing-coordinates" aria-label="Fix missing coordinates" title="Fix missing coordinates">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"></circle>
                   <path d="M2 12h20"></path>
@@ -359,6 +364,48 @@
           </div>
         </form>
         <div class="modal-status" id="save-dialog-status" role="status"></div>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="filter-dialog">
+      <div class="modal-panel">
+        <header class="modal-header">
+          <h2>Filter events</h2>
+          <button class="icon-button" type="button" id="close-filter-dialog" aria-label="Close filter dialog">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18"></path>
+              <path d="m6 6 12 12"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="stack">
+          <div class="small">Only changes what is listed here. Saving still writes every event.</div>
+          <details class="optional-section export-collections-section" id="filter-collections-options" open>
+            <summary>
+              <span>Collections</span>
+              <span class="optional-summary" id="filter-collections-summary">All collections</span>
+            </summary>
+            <div class="export-collection-list" id="filter-collections"></div>
+            <div class="export-event-actions">
+              <button type="button" id="select-all-filter-collections">Select all</button>
+              <button type="button" id="clear-filter-collections">Clear</button>
+            </div>
+          </details>
+          <details class="optional-section export-events-section" id="filter-types-options" open>
+            <summary>
+              <span>Event types</span>
+              <span class="optional-summary" id="filter-types-summary">All event types</span>
+            </summary>
+            <div class="export-event-types" id="filter-types"></div>
+            <div class="export-event-actions">
+              <button type="button" id="select-all-filter-types">Select all</button>
+              <button type="button" id="clear-filter-types">Clear</button>
+            </div>
+          </details>
+          <div class="save-actions">
+            <button type="button" id="reset-filters">Reset filters</button>
+          </div>
+        </div>
       </div>
     </dialog>
 

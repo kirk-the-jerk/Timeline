@@ -324,6 +324,12 @@ button.info:hover {
   background: #1f4a70;
 }
 
+button.filter-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .header-action-gap {
   margin-left: 8px;
 }
@@ -800,6 +806,12 @@ body.event-editor-open {
   color: var(--accent-dark);
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.event-warning {
+  margin-left: 4px;
+  color: #b7791f;
+  cursor: help;
 }
 
 .event-name {
