@@ -1,3 +1,4 @@
+import { loadActiveTimeline } from "./db.js";
 import { createTimelineLoadController } from "./fileLoad.js";
 import { initNav } from "./nav.js";
 import { renderPlayer } from "./playerRenderers.js";
@@ -5,6 +6,7 @@ import { DEFAULT_PLAYER_TYPE, getPlayerType, normalizePlayerType } from "./playe
 import { normalizeTimeline, sortEvents } from "./timeline.js";
 
 const loadButton = document.querySelector("#open-load-file");
+const loadDraftButton = document.querySelector("#load-draft");
 const loadFileInput = document.querySelector("#load-file");
 const loadDialog = document.querySelector("#load-dialog");
 const closeLoadDialogButton = document.querySelector("#close-load-dialog");
@@ -36,7 +38,25 @@ createTimelineLoadController({
   onStatus: setStatus
 });
 
+loadDraftButton.addEventListener("click", loadDraft);
+
 init();
+
+// The editor keeps its working timeline in the browser's IndexedDB; this plays
+// it without saving a file first.
+async function loadDraft() {
+  try {
+    const draft = await loadActiveTimeline();
+    if (draft.events.length === 0) {
+      setStatus("No draft to load. The editor has no events yet.");
+      return;
+    }
+    renderTimeline(draft);
+    setStatus("Loaded the editor draft.");
+  } catch (error) {
+    setStatus(`Could not load the editor draft: ${error.message}`);
+  }
+}
 
 function init() {
   const embeddedData = document.querySelector("#timeline-data");
@@ -63,7 +83,7 @@ function renderEmptyState() {
   destroyCurrentView();
   document.title = defaultDocumentTitle;
   titleText.textContent = "No timeline loaded";
-  summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header or drop a timeline file anywhere on this page.`;
+  summary.textContent = `Using the ${selectedPlayer.label} player. Use the load button in the header, click Load draft to play what you are editing, or drop a timeline file anywhere on this page.`;
   timelineEl.innerHTML = `<div class="empty-state">No timeline loaded.</div>`;
   loadButton.classList.add("attention");
 }
