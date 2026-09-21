@@ -1034,6 +1034,12 @@ eventList.addEventListener("click", async (event) => {
     return;
   }
 
+  const duplicateButton = event.target.closest("[data-duplicate-id]");
+  if (duplicateButton) {
+    startEditingEvent(duplicateButton.dataset.duplicateId, { duplicate: true });
+    return;
+  }
+
   const deleteButton = event.target.closest("[data-delete-id]");
   if (!deleteButton) return;
   const deletedEvent = timeline.events.find((item) => item.id === deleteButton.dataset.deleteId);
@@ -1321,6 +1327,12 @@ function render() {
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
           </svg>
         </button>
+        <button class="icon-button" type="button" data-duplicate-id="${escapeHtml(event.id)}" aria-label="Duplicate event" title="Duplicate">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+            <path d="M5 15V6a2 2 0 0 1 2-2h9"></path>
+          </svg>
+        </button>
         <button class="icon-button danger" type="button" data-delete-id="${escapeHtml(event.id)}" aria-label="Delete event" title="Delete">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 6h18"></path>
@@ -1578,20 +1590,21 @@ function openPopulatedOptionalSections() {
   fieldsOptions.open = draftFields.length > 0;
 }
 
-function startEditingEvent(eventId) {
+// With `duplicate`, the form is filled from the event but saves as a new one.
+function startEditingEvent(eventId, { duplicate = false } = {}) {
   const event = timeline.events.find((item) => item.id === eventId);
   if (!event) {
-    setStatus("Could not edit because the event no longer exists.", "error");
+    setStatus(`Could not ${duplicate ? "duplicate" : "edit"} because the event no longer exists.`, "error");
     return;
   }
 
-  editingEventId = event.id;
-  formTitle.textContent = "Edit event";
-  submitEventButton.textContent = "Save changes";
-  cancelEditButton.hidden = false;
+  editingEventId = duplicate ? null : event.id;
+  formTitle.textContent = duplicate ? "Add event" : "Edit event";
+  submitEventButton.textContent = duplicate ? "Add event" : "Save changes";
+  cancelEditButton.hidden = duplicate;
 
   populateEventTypes(event.type);
-  eventTitleInput.value = getEventTitle(event);
+  eventTitleInput.value = duplicate ? `${getEventTitle(event)} (copy)` : getEventTitle(event);
   dateInput.value = event.timestamp?.date || new Date().toISOString().slice(0, 10);
   timeInput.value = event.timestamp?.time === "00:00" ? "" : event.timestamp?.time || "";
   endDateInput.value = event.endTimestamp?.date || "";
@@ -1604,6 +1617,7 @@ function startEditingEvent(eventId) {
   imageLinkInput.value = "";
   imageFileInput.value = "";
   draftImages = resolveEventImages(timeline, event).map(toDraftImage);
+  if (duplicate) draftImages = draftImages.map((image) => ({ ...image, id: crypto.randomUUID() }));
   draftFields = Array.isArray(event.fields)
     ? event.fields.map((field) => ({ ...field }))
     : [];
@@ -1613,7 +1627,9 @@ function startEditingEvent(eventId) {
   render();
   openEventEditor({ focus: false });
   eventTitleInput.focus();
-  setStatus("Editing event. Save changes or cancel to return to adding events.");
+  setStatus(duplicate
+    ? "Duplicating event. Adjust the copy, then add it."
+    : "Editing event. Save changes or cancel to return to adding events.");
 }
 
 async function addDraftImagesFromFiles(files) {
