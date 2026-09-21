@@ -1,0 +1,90 @@
+/* Print styles for the timeline list. Shared by player.html, which links it, and
+   the standalone export, which inlines it. Keep it last in both, so it wins over
+   the card styles that styles.css and standaloneCss() each carry. */
+
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  /* player.html: only the title and the timeline are worth paper. */
+  .nav-links,
+  .header-actions,
+  .modal,
+  #status {
+    display: none !important;
+  }
+
+  .app-shell,
+  .shell {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .panel.player-panel {
+    min-height: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .topbar {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+  }
+
+  /* The spine and dots are positioned against the whole list, which breaks across
+     pages, so a page break would strand or clip them. */
+  .timeline::before,
+  .timeline-event::before {
+    display: none;
+  }
+
+  .timeline {
+    margin-top: 0;
+    gap: 12px;
+  }
+
+  .timeline-event {
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: 16px;
+    break-inside: avoid;
+  }
+
+  .timeline-card {
+    border-radius: 0;
+  }
+
+  .gallery-item {
+    break-inside: avoid;
+  }
+
+  /* Small badges that explain where an image is stored; they only cover the photo. */
+  .source-icon,
+  .gallery-overflow {
+    display: none;
+  }
+
+  /* Timeline player: the search, filters, chart and sliders can't be used on paper.
+     The status line stays, so a filtered print says what it shows. */
+  .tl-controls,
+  .tl-chart,
+  .tl-overview,
+  .tl-reset {
+    display: none !important;
+  }
+
+  .tl-pin.is-pinned {
+    position: static;
+    padding: 0;
+  }
+
+  .tl-status {
+    margin-bottom: 4px;
+  }
+}

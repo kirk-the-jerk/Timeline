@@ -6,7 +6,9 @@ export const EXPORT_RUNTIME_URL = new URL("./exportRuntime.js", import.meta.url)
 export const PLAYER_CSS_URLS = [
   new URL("./timelinePlayer.css", import.meta.url).href,
   new URL("./slideshowPlayer.css", import.meta.url).href,
-  new URL("./mapPlayer.css", import.meta.url).href
+  new URL("./mapPlayer.css", import.meta.url).href,
+  // Last, so its print rules win over the card styles above.
+  new URL("./print.css", import.meta.url).href
 ];
 // Leaflet is a classic script, not an ES module, so it never goes through the
 // bundler. It is inlined only into an export whose player is the Map.

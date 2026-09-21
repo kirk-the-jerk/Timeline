@@ -107,7 +107,7 @@ Not bugs — unmade decisions that constrain what the app can become. Worth sett
 lands on top of the current assumptions.
 
 - [ ] **One draft, globally.** `ACTIVE_ID = "active"` ([src/db.js:7](src/db.js#L7)) means "Japan 2026" and "Career" cannot coexist. Collections partially paper over this, but they are tags inside a single document, not separate documents. Multi-draft storage also resolves the import-clobber path in P1.
-- [ ] **No print path.** No `@media print` rules anywhere in `styles.css` or the export runtime. For a scrapbook, "print it / save as PDF" is a natural second output and CSS gets most of the way there.
+- [x] **Print path.** [src/print.css](src/print.css) styles the event list for paper in `player.html` and in exports (Simple and Timeline players). Not done: Slideshow and Map have no print layout. A print-only event list rendered by every export would cover them, at the cost of holding each embedded photo in the DOM twice.
 - [ ] **Capture is desktop-shaped.** The event form is a long desktop dialog, but the raw material for a scrapbook lives on a phone. Decide now whether that flow matters — it affects the editor's shape.
 
 ## P7 — Exports can leak to third parties

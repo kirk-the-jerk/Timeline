@@ -31,7 +31,7 @@ Built by `buildStandaloneHtml` in [../src/htmlExport.js](../src/htmlExport.js):
 |---|---|---|
 | Timeline data | `<script type="application/json" id="timeline-data">` | The full normalized timeline, including `media[]`. Every `<` is written as the JSON escape for U+003C, so data can't close the `<script>` tag. |
 | Player choice | `<script type="application/json" id="player-data">` | The player descriptor from `players.js` (`value`, `label`, ...). |
-| Styles | one `<style>` | `standaloneCss()` plus each player's CSS file ([../src/timelinePlayer.css](../src/timelinePlayer.css), [../src/slideshowPlayer.css](../src/slideshowPlayer.css), [../src/mapPlayer.css](../src/mapPlayer.css)), listed in `PLAYER_CSS_URLS`. |
+| Styles | one `<style>` | `standaloneCss()` plus each player's CSS file ([../src/timelinePlayer.css](../src/timelinePlayer.css), [../src/slideshowPlayer.css](../src/slideshowPlayer.css), [../src/mapPlayer.css](../src/mapPlayer.css)), then the shared [../src/print.css](../src/print.css), listed in `PLAYER_CSS_URLS`. |
 | Vendored library | one classic `<script>`, before the runtime | **Map player only.** Leaflet (`vendor/leaflet/leaflet.js`), with its stylesheet ahead of the other styles. See 3.6. |
 | Runtime | one classic `<script>` | [../src/exportRuntime.js](../src/exportRuntime.js) and its imports, bundled by [../src/exportBundle.js](../src/exportBundle.js). |
 
@@ -178,12 +178,12 @@ Today that is Leaflet 1.9.4 for the Map player.
 | Screen readers | The timeline player has a live status region. Otherwise unspecified. |
 | Reduced motion | Slideshow: no fades or transitions. Map: the camera jumps instead of flying. The timeline player still scrolls smoothly on mark click. |
 | Dark mode | None. The export forces `color-scheme: light`. |
-| Print | No `@media print` rules anywhere. |
+| Print | [../src/print.css](../src/print.css), last in both `player.html` and the export. Simple and Timeline print the event list: page chrome, search, filters, chart and sliders are dropped, the spine and dots are dropped (they can't span a page break), and cards don't split across pages. The Timeline player's status line stays, so a filtered print says so. **Gap:** Slideshow and Map have no print layout; they print whatever is on screen. |
 | Mobile | One breakpoint at 760px (the date column stacks above the card). Otherwise the app's layout is desktop-shaped. The slideshow stage handles tap and swipe. The map's flyouts become full-width sheets, one at a time. |
 | Time zones | Shown neither in the card date nor on the chart. Ordering is by wall-clock text. See 6. |
 
 **Gap:** none of these has been set as a requirement across players. The slideshow answered keyboard, motion
-and full screen for itself. Print is still open.
+and full screen for itself. Print is set for Simple and Timeline only.
 
 ## 6. Time handling
 

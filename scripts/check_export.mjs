@@ -105,6 +105,8 @@ async function checkTimelinePlayerExport() {
     const html = buildStandaloneHtml(timeline, player, runtime, playerCss);
     assert.equal(JSON.parse(html.match(/id="player-data">([\s\S]*?)<\/script>/)[1]).value, player);
     assert.ok(html.includes(styleMarker), `${player} player styles are inlined`);
+    assert.ok(html.includes("@media print"), `${player} export carries the print styles`);
+    assert.ok(playerCss.lastIndexOf("@media print") > playerCss.lastIndexOf(".mp-stage"), "print styles come last, so they win over the card styles");
     const runtimeSource = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)][0][1];
     assert.doesNotThrow(() => new vm.Script(runtimeSource, { filename: `export-runtime-${player}.js` }));
     assert.ok(runtimeSource.includes(renderer), `${player} renderer is bundled`);
